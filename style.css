@@ -93,6 +93,8 @@ body {
     margin-top: 4rem;
 }
 
+@media (max-width: 768px) {}
+
 :root {
     --background-dark: oklch(0.16 0.004 285);
     --button-dark: oklch(0.18 0.008 270);
