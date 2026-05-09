@@ -1,0 +1,75 @@
+@font-face {
+    font-family: 'Huninn';
+    src: url('Huninn-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+}
+
+body {
+    background-color: var(--background-dark);
+    color: var(--text);
+    font-family: var(--font);
+    font-weight: 400;
+    padding: 1rem;
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo img {
+    width: clamp(10rem, 80vmin, 40rem);
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
+.buttons {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+}
+
+.btn {
+    position: relative;
+    padding: 1rem 1rem;
+    font-size: 2rem;
+    font-family: var(--font);
+    color: var(--text);
+    background-color: var(--button);
+    border: none;
+    border-radius: 1rem;
+    cursor: pointer;
+    transition: transform 0.1s ease;
+    box-sizing: border-box;
+    min-width: fit-content;
+    box-shadow: 0 0.5rem 0 0 var(--button-dark);
+}
+
+.btn:active {
+    transform: translateY(0.5rem);
+}
+
+:root {
+    --background-dark: oklch(0.16 0.004 285);
+    --button-dark: oklch(0.18 0.008 270);
+    --button: oklch(0.22 0.01 260);
+    --text: oklch(0.8 0 0);
+    --font: 'Huninn', sans-serif;
+}
