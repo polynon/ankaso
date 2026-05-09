@@ -56,7 +56,7 @@ body {
 
 .buttons {
     width: min(100%, 25rem);
-    display: grid;
+    display: flex;
     grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
     gap: 1.5rem;
     margin-top: 4rem;
@@ -91,26 +91,6 @@ body {
 
 .info {
     margin-top: 4rem;
-}
-
-@media (max-width: 560px) {
-    body {
-        margin-top: 6rem;
-        padding: 1rem;
-    }
-
-    .subtitle {
-        font-size: 2rem;
-    }
-
-    .buttons {
-        gap: 1rem;
-    }
-
-    .btn {
-        font-size: 1.6rem;
-        padding: 0.9rem 1rem;
-    }
 }
 
 :root {
