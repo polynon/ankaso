@@ -1,4 +1,11 @@
 @font-face {
+    font-family: 'Chiron Go Round TC';
+    src: url('ChironGoRoundTC.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+}
+
+@font-face {
     font-family: 'Huninn';
     src: url('Huninn-Regular.ttf') format('truetype');
     font-weight: 400;
@@ -10,9 +17,10 @@ body {
     color: var(--text);
     font-family: var(--font);
     font-weight: 400;
+    font-size: 1.5rem;
     padding: 1rem;
     margin: 0;
-    height: 100vh;
+    margin-top: 10%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -24,7 +32,7 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2rem;
+    gap: 1rem;
 }
 
 .logo {
@@ -34,20 +42,31 @@ body {
 }
 
 .logo img {
-    width: clamp(10rem, 80vmin, 40rem);
+    width: clamp(10rem, 80vmin, 30rem);
     max-width: 100%;
     height: auto;
     object-fit: contain;
 }
 
+.subtitle {
+    font-size: 2.5rem;
+    color: var(--text);
+    margin: 0;
+}
+
 .buttons {
+    width: min(100%, 25rem);
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 1.5rem;
+    margin-top: 4rem;
+    margin-left: 4rem;
+    margin-right: 4rem;
 }
 
 .btn {
     position: relative;
+    width: 100%;
     padding: 1rem 1rem;
     font-size: 2rem;
     font-family: var(--font);
@@ -58,12 +77,40 @@ body {
     cursor: pointer;
     transition: transform 0.1s ease;
     box-sizing: border-box;
-    min-width: fit-content;
+    min-width: auto;
     box-shadow: 0 0.5rem 0 0 var(--button-dark);
+}
+
+.btn:hover {
+    color: var(--text_highlight);
 }
 
 .btn:active {
     transform: translateY(0.5rem);
+}
+
+.info {
+    margin-top: 4rem;
+}
+
+@media (max-width: 560px) {
+    body {
+        margin-top: 6rem;
+        padding: 1rem;
+    }
+
+    .subtitle {
+        font-size: 2rem;
+    }
+
+    .buttons {
+        gap: 1rem;
+    }
+
+    .btn {
+        font-size: 1.6rem;
+        padding: 0.9rem 1rem;
+    }
 }
 
 :root {
@@ -71,5 +118,6 @@ body {
     --button-dark: oklch(0.18 0.008 270);
     --button: oklch(0.22 0.01 260);
     --text: oklch(0.8 0 0);
+    --text_highlight: oklch(1 0 0);
     --font: 'Huninn', sans-serif;
 }
