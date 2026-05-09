@@ -90,32 +90,6 @@ body {
     margin-top: 4rem;
 }
 
-@media (max-width: 768px) {
-    body {
-        font-size: 2rem;
-        padding: 0.5rem;
-        margin-top: 5%;
-    }
-
-    .subtitle {
-        font-size: 3rem;
-    }
-
-    .buttons {
-        gap: 2rem;
-        margin-top: 2rem;
-    }
-
-    .btn {
-        font-size: 2.5rem;
-        padding: 1.2rem 1rem;
-    }
-
-    .info {
-        margin-top: 2rem;
-    }
-}
-
 :root {
     --background-dark: oklch(0.16 0.004 285);
     --button-dark: oklch(0.18 0.008 270);
