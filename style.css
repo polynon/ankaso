@@ -54,18 +54,16 @@ body {
 }
 
 .buttons {
-    width: min(100%, 25rem);
+    width: 100%;
     display: flex;
-    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
     gap: 1.5rem;
     margin-top: 4rem;
-    margin-left: 4rem;
-    margin-right: 4rem;
 }
 
 .btn {
     position: relative;
-    width: 100%;
+    width: auto;
+    flex: 1;
     padding: 1rem 1rem;
     font-size: 2rem;
     font-family: var(--font);
@@ -92,7 +90,31 @@ body {
     margin-top: 4rem;
 }
 
-@media (max-width: 768px) {}
+@media (max-width: 768px) {
+    body {
+        font-size: 2rem;
+        padding: 0.5rem;
+        margin-top: 5%;
+    }
+
+    .subtitle {
+        font-size: 3rem;
+    }
+
+    .buttons {
+        gap: 2rem;
+        margin-top: 2rem;
+    }
+
+    .btn {
+        font-size: 2.5rem;
+        padding: 1.2rem 1rem;
+    }
+
+    .info {
+        margin-top: 2rem;
+    }
+}
 
 :root {
     --background-dark: oklch(0.16 0.004 285);
