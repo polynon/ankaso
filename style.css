@@ -106,7 +106,8 @@ body {
 }
 
 .logo-small {
-    height: 70%;
+    margin-top: 0.3rem;
+    height: clamp(2.25rem, 6vw, 3rem);
     width: auto;
     object-fit: contain;
 }
