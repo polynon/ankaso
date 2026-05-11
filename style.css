@@ -32,7 +32,7 @@ body {
     align-items: center;
     justify-content: center;
     gap: 1rem;
-    width: min(100%, 34rem);
+    width: min(100%, 40rem);
 }
 
 .logo {
@@ -96,31 +96,31 @@ body {
     top: 0;
     left: 0;
     width: 100%;
-    height: 4rem;
-    background-color: var(--background-dark);
+    height: clamp(3rem, 8vw, 4rem);
+    background-color: var(--window-dark);
     display: flex;
     align-items: center;
     padding: 0 1rem;
-    box-shadow: 0 0.2rem 0 0 var(--window-dark);
+    box-shadow: 0 0.2rem 0 0 var(--window);
     z-index: 1000;
 }
 
 .logo-small {
-    height: 3rem;
+    height: 70%;
     width: auto;
     object-fit: contain;
 }
 
 .search-input {
     width: 100%;
-    max-width: 30rem;
-    padding: 1rem;
-    font-size: 1.5rem;
+    max-width: clamp(20rem, 60vw, 30rem);
+    padding: clamp(0.5rem, 1.5vw, 0.75rem);
+    font-size: clamp(1rem, 3vw, 1.5rem);
     font-family: var(--font);
-    color: var(--text);
+    color: var(--text_highlight);
     background-color: var(--window);
-    border: 0.2rem solid var(--window-highlight);
-    border-radius: 1rem;
+    border: 0.15rem solid var(--window-highlight);
+    border-radius: 0.75rem;
     outline: none;
     box-sizing: border-box;
 }
@@ -132,7 +132,56 @@ body {
 
 .dictionary-page {
     margin-top: 0;
-    padding-top: 5rem;
+    padding-top: clamp(5rem, 16vw, 8rem);
+}
+
+.dictionary-results {
+    margin-top: 1rem;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.dictionary-entry {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.25rem;
+}
+
+.root-line {
+    display: flex;
+    align-items: baseline;
+}
+
+.root-text {
+    color: var(--text-highlight);
+    font-size: clamp(1rem, 3vw, 1.5rem);
+    font-family: var(--font);
+}
+
+.root-slash {
+    color: var(--window-highlight);
+    font-size: clamp(1rem, 3vw, 1.5rem);
+    margin: 0 0.3rem;
+}
+
+.entry-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.entry-translation {
+    color: var(--text-dim);
+    font-size: clamp(0.75rem, 2vw, 1rem);
+    font-family: var(--font);
+}
+
+.entry-description {
+    color: var(--text-dim);
+    font-size: clamp(0.75rem, 2vw, 1rem);
+    font-family: var(--font);
+    font-style: italic;
 }
 
 :root {
@@ -140,6 +189,7 @@ body {
     --window-dark: oklch(0.18 0.008 270);
     --window: oklch(0.22 0.01 260);
     --window-highlight: oklch(0.3 0.01 260);
+    --text-dim: oklch(0.4 0.015 260);
     --text: oklch(0.8 0.01 260);
     --text-highlight: oklch(1 0 0);
     --font: 'Huninn', sans-serif;

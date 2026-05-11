@@ -1,0 +1,70 @@
+{
+  "a": {
+    "description": "object marker",
+    "tags": ["object", "marker"]
+  },
+  "ai": {
+    "general": ["hi", "hey", "greet"],
+    "root": ["hello", "hi", "hey", "greet", "greeted"],
+    "o-form": ["greeting", "greetings"]
+  },
+  "aku": {
+    "general": ["bitter"],
+    "root": ["bitter", "harsh"],
+    "o-form": ["bitterness"]
+  },
+  "ampali": {
+    "general": ["wide", "width"],
+    "root": ["wide", "broad", "vast", "ample", "thick"],
+    "o-form": ["width", "thickness", "grith", "span", "spread"]
+  },
+  "an": {
+    "general": ["single", "only", "one"],
+    "root": ["single", "only"],
+    "o-form": ["one"]
+  },
+  "anta": {
+    "general": ["you", "your"],
+    "root": ["your", "yours"],
+    "o-form": ["you"]
+  },
+  "ante": {
+    "general": ["hand", "arm", "provide"],
+    "root": ["manual", "hand", "provide", "help"],
+    "o-form": ["hand", "arm", "fist"]
+  },
+  "asan": {
+    "general": ["sour", "acid"],
+    "root": ["sour", "acidic"],
+    "o-form": ["sourness", "acid"]
+  },
+  "ata": {
+    "general": ["even", "including"],
+    "root": ["even", "include", "including"],
+    "o-form": ["inclusion"]
+  },
+  "au": {
+    "general": ["air", "blow"],
+    "root": ["aerial", "blow"],
+    "o-form": ["air", "wind"]
+  },
+  "awan": {
+    "general": ["animal"],
+    "root": ["animal"],
+    "o-form": ["animal"]
+  },
+  "awi": {
+    "general": ["hurt", "ouch", "pain"],
+    "root": ["hurt", "ouch", "painful", "damage"],
+    "o-form": ["pain", "damage"]
+  },
+  "en": {
+    "general": ["in", "on", "at"],
+    "root": ["in", "on", "at", "during", "in that", "into", "onto"]
+  },
+  "te": {
+    "general": ["of", "from", "that"],
+    "root": ["of", "from", "that", "since"],
+    "tags": ["subordinate", "relative", "clause"]
+  }
+}

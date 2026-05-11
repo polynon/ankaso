@@ -1,0 +1,55 @@
+{
+  "a": {
+    "root": "a"
+  },
+  "ai": {
+    "root": "ai",
+    "o-form": "ayo"
+  },
+  "aku": {
+    "root": "aku",
+    "o-form": "akuo"
+  },
+  "ampali": {
+    "root": "ampali",
+    "o-form": "ampalio"
+  },
+  "an": {
+    "root": "an",
+    "o-form": "ano"
+  },
+  "anta": {
+    "root": "anta",
+    "o-form": "anto"
+  },
+  "ante": {
+    "root": "ante",
+    "o-form": "anteyo"
+  },
+  "asan": {
+    "root": "asan",
+    "o-form": "asano"
+  },
+  "ata": {
+    "root": "ata",
+    "o-form": "ato"
+  },
+  "au": {
+    "root": "au",
+    "o-form": "awo"
+  },
+  "awan": {
+    "root": "awan",
+    "o-form": "awano"
+  },
+  "awi": {
+    "root": "awi",
+    "o-form": "awio"
+  },
+  "en": {
+    "root": "en"
+  },
+  "te": {
+    "root": "te"
+  }
+}

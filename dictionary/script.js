@@ -1,0 +1,125 @@
+async function loadDictionary() {
+    try {
+        // Fetch both JSON files
+        const dictResponse = await fetch('dictionary.json');
+        const dictionary = await dictResponse.json();
+        
+        const langResponse = await fetch('../lang/en.json');
+        const translations = await langResponse.json();
+        
+        // Get all keys and sort alphabetically
+        const allKeys = Object.keys(dictionary).sort();
+        
+        // Function to render results
+        function renderResults(keys) {
+            const resultsContainer = document.getElementById('results');
+            resultsContainer.innerHTML = '';
+            
+            keys.forEach(key => {
+                const entry = dictionary[key];
+                const transData = translations[key];
+                
+                // Create entry div
+                const entryDiv = document.createElement('div');
+                entryDiv.className = 'dictionary-entry';
+                
+                // Create root and o-form line
+                const rootLine = document.createElement('div');
+                rootLine.className = 'root-line';
+                
+                // Create root span
+                const rootSpan = document.createElement('span');
+                rootSpan.className = 'root-text';
+                rootSpan.textContent = entry.root || key;
+                rootLine.appendChild(rootSpan);
+                
+                // Add o-form if present
+                if (entry['o-form']) {
+                    const slashSpan = document.createElement('span');
+                    slashSpan.className = 'root-slash';
+                    slashSpan.textContent = ' / ';
+                    rootLine.appendChild(slashSpan);
+                    
+                    const oFormSpan = document.createElement('span');
+                    oFormSpan.className = 'root-text';
+                    oFormSpan.textContent = entry['o-form'];
+                    rootLine.appendChild(oFormSpan);
+                }
+                
+                entryDiv.appendChild(rootLine);
+                
+                // Add translations and description if present
+                if (transData) {
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = 'entry-info';
+                    
+                    // Add general translations
+                    if (transData.general && transData.general.length > 0) {
+                        const transSpan = document.createElement('span');
+                        transSpan.className = 'entry-translation';
+                        transSpan.textContent = transData.general.join(', ');
+                        infoDiv.appendChild(transSpan);
+                    }
+                    
+                    // Add description if present
+                    if (transData.description) {
+                        const descSpan = document.createElement('span');
+                        descSpan.className = 'entry-description';
+                        descSpan.textContent = transData.description;
+                        infoDiv.appendChild(descSpan);
+                    }
+                    
+                    entryDiv.appendChild(infoDiv);
+                }
+                
+                resultsContainer.appendChild(entryDiv);
+            });
+        }
+        
+        // Initial render of all keys
+        renderResults(allKeys);
+        
+        // Add search functionality
+        const searchInput = document.querySelector('.search-input');
+        searchInput.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+            if (query === '') {
+                renderResults(allKeys);
+                return;
+            }
+            
+            // Find matching keys
+            const matchingKeys = allKeys.filter(key => {
+                const entry = dictionary[key];
+                const transData = translations[key];
+                
+                // Check dictionary.json root, o-form, tags
+                if ((entry.root || key).toLowerCase() === query) return true;
+                if (entry['o-form'] && entry['o-form'].toLowerCase() === query) return true;
+                if (entry.tags && entry.tags.some(tag => tag.toLowerCase() === query)) return true;
+                
+                // Check en.json description and tags
+                if (transData) {
+                    if (transData.description && transData.description.toLowerCase() === query) return true;
+                    if (transData.tags && transData.tags.some(tag => tag.toLowerCase() === query)) return true;
+                    if (transData.root && transData.root.some(term => term.toLowerCase() === query)) return true;
+                    if (transData['o-form'] && transData['o-form'].some(term => term.toLowerCase() === query)) return true;
+                }
+                
+                return false;
+            });
+            
+            // Remove duplicates (though unlikely)
+            const uniqueKeys = [...new Set(matchingKeys)];
+            
+            renderResults(uniqueKeys);
+        });
+        
+    } catch (error) {
+        console.error('Error loading dictionary:', error);
+        document.getElementById('results').textContent = 'Error loading dictionary';
+    }
+}
+
+// Load dictionary when page loads
+document.addEventListener('DOMContentLoaded', loadDictionary);
