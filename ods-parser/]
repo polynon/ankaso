@@ -94,10 +94,9 @@ static inline bool is_white_space(char c){
 
 //TODO make this work with stack
 bool get_next_tab(String_View *sv,XmlTab* out){
-	//TODO: add better error messages
-	//TODO:	check for eof 
 	bool result = true; //defer
 	bool first = false;
+	bool type_defed = false;
 	*sv = sv_trim_left(*sv);
 	if(sv->data[0] != '<') defer(false);
 	++(sv->data);
@@ -107,6 +106,7 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 	}
 	*sv = sv_trim_left(*sv);
 	String_Builder sb = {0};
+	bool is_value = false;
 	// :first
 	if(first) out->self_closing = true;
 	if(first) for(;;){
@@ -154,7 +154,7 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 		String_View value;
 		// :key
 		for(;;){
-			if(is_white_space(sv->data[0]) || sv->data[0] == '>' || sv->data[0] == '\\' || sv->data[0] == '='){
+			if(is_white_space(sv->data[0]) || sv->data[0] == '>' || sv->data[0] == '\\'){
 				//TODO: bit of a memory leak 
 				//sv_cpy should be replaced with 
 				//a better memory system
@@ -166,70 +166,78 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 					defer(1);
 				}	
 				if(sv->data[0] == '>' || sv->data[0] == '\\') goto att_end;
-				sb.count = 0;//clean sb
-				if(sv->data[0] == '=') break;//break early so we can check for it
 				++(sv->data); 
+				sb.count = 0;//clean sb
 				break;
 			}
 			sb_append(&sb,sv->data[0]);
 			++(sv->data); 
 		}
-		*sv = sv_trim_left(*sv);
-		if(sv->data[0] != '=') defer(false);
-		++(sv->data); 
 		// :value
-		*sv = sv_trim_left(*sv);
-		char quote = sv->data[0];
-		if(quote != '\"' && quote != '\'') defer(1);
-		++(sv->data); 
-		*sv = sv_trim_left(*sv);
 		for(;;){
-			if(sv->data[0] == quote){
-				//TODO: bit of a memory leak 
-				//sv_cpy should be replaced with 
-				//a better memory system
-				//this is not that bad right now since the content.xml
-				//is small but is could be a problum later
-				value = sv_cpy(sb_to_sv(sb));
-				if(out->type.data == NULL){
-					printf("OUT OF RAM OH NO!!!!");
-					defer(1);
-				}	
-				++(sv->data); 
-				sb.count = 0;//clean sb
-				break;
-			}
-			sb_append(&sb,sv->data[0]);
-			++(sv->data);
+			TODO("Parsing of att value");
 		}
-		//TODO: check for null strs
-		da_append(&out->atts,((Attribute){.name = key,.value = value}));
 	}
-defer:
+	if(0) while(true){
+		//printf("c = %c\n",sv->data[0]);
+		if(sv->data[0] == ' ') goto word;
+		if(sv->data[0] == '='){
+			if(is_value) defer(false);
+			goto word;
+		}
+		if(sv->data[0] == '\\' || sv->data[0] == '?' || sv->data[0] == '>'){
+			goto word;
+			break;
+		}
+		sb_append(&sb,sv->data[0]);
+		++(sv->data);
+		continue;
+	word:
+		if(!type_defed){
+			//TODO: bit of a memory leak 
+			//sv_cpy should be replaced with 
+			//a better memory system
+			//this is not that bad right now since the content.xml
+			//is small but is could be a problum later
+			out->type = sv_cpy(sb_to_sv(sb));
+			if(out->type.data == NULL){
+				printf("OUT OF RAM OH NO!!!!");
+				defer(1);
+			}
+			type_defed = true;
+			++(sv->data);
+			continue;
+		}
+		if(is_value){
+			TODO("vaule");
+		}
+		else{
+			TODO("att");
+		}
+	}
+	*sv = sv_trim_left(*sv);
+	//if(first && sv->data[0] != '?') defer(false); else
+	defer:
 	sb_free(sb);//could avoid this with static
+	printf("result = %d\n",result);
 	return result;
 }
 
 void print_tab(XmlTab tab){
-	//TODO: care about depth
-	printf("atts_count = %zu\n",tab.atts.count);
-	printf("type = "SV_Fmt"\n",SV_Arg(tab.type));
-	da_foreach(Attribute,att,&tab.atts){
-		printf("\t"SV_Fmt" = ""\'"SV_Fmt"\'""\n",SV_Arg(att->name),SV_Arg(att->value));
-	}
+	(void)tab;
+	TODO("PRINT tab");
 }
 
 int main(void){
 	int result = 0;//defer
 	String_View content;
 	if(!get_content(&content)) defer(1);
-	//printf(SV_Fmt,SV_Arg(content));	
 	//TODO: factor this out to own function
 	XmlTab tab = {0};//needed for the da
 	if(!get_next_tab(&content,&tab)) defer(1);
 	print_tab(tab);
 defer:
-	//TODO: make it not complain
-	//mz_free((void*)content.data);
+	//TODO: make this better
+	mz_free((void*)content.data);
 	return result;
 }
