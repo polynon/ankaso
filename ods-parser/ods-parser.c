@@ -15,6 +15,8 @@
 #define DICT_PATH "Ankaso.ods"
 #define DICT_SHEET_NAME "Dictionary"
 
+#define SV_JS_NULL (String_View){.count = 4,.data = "NULL"};
+
 //TODO: document .ods
 bool get_content(String_View* out){
 	/*
@@ -110,7 +112,7 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 	// :first
 	if(first) out->self_closing = true;
 	if(first) for(;;){
-		if (sv->data[0] == '=' || sv->data[0] == '\\' || sv->data[0] == '>') defer(false);
+		if(sv->data[0] == '=' || sv->data[0] == '\\' || sv->data[0] == '>') defer(false);
 		if(is_white_space(sv->data[0]) || sv->data[0] == '?'){
 			++(sv->data);
 			//TODO: bit of a memory leak 
@@ -129,14 +131,38 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 		sb_append(&sb,sv->data[0]);
 		++(sv->data);
 	}
-	else{
-		TODO("type");
+	else for(;;){
+		if(sv->data[0] == '=' || sv->data[0] == '?') defer(false);
+		if(is_white_space(sv->data[0]) || sv->data[0] == '\\' || sv->data[0] == '>'){
+			++(sv->data);
+			//TODO: bit of a memory leak 
+			//sv_cpy should be replaced with 
+			//a better memory system
+			//this is not that bad right now since the content.xml
+			//is small but is could be a problum later
+			out->type = sv_cpy(sb_to_sv(sb));
+			if(out->type.data == NULL){
+				printf("OUT OF RAM OH NO!!!!");
+				defer(1);
+			}
+			sb.count = 0;//clean sb
+			break;
+		}
+		sb_append(&sb,sv->data[0]);
+		++(sv->data);
 	}
 	// :attributes parsing
 	for(;;){
-	att_end://maybe this want to be in a funcion
 		*sv = sv_trim_left(*sv);
-		if(!first && sv->data[0] == '\\'){
+		if(first && sv->data[0] == '?'){
+			out->self_closing = true;
+			++(sv->data);
+			*sv = sv_trim_left(*sv);
+			if(sv->data[0] != '>') defer(false);
+			++(sv->data);
+			break;
+		}
+		else if(!first && sv->data[0] == '\\'){
 			out->self_closing = true;
 			++(sv->data);
 			*sv = sv_trim_left(*sv);
@@ -154,7 +180,9 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 		String_View value;
 		// :key
 		for(;;){
-			if(is_white_space(sv->data[0]) || sv->data[0] == '>' || sv->data[0] == '\\' || sv->data[0] == '='){
+			if(sv->data[0] == '>' || sv->data[0] == '\\' || sv->data[0] == '?') defer(false); 
+			if(is_white_space(sv->data[0]) || sv->data[0] == '='){
+				//printf("hellow\n");
 				//TODO: bit of a memory leak 
 				//sv_cpy should be replaced with 
 				//a better memory system
@@ -165,7 +193,6 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 					printf("OUT OF RAM OH NO!!!!");
 					defer(1);
 				}	
-				if(sv->data[0] == '>' || sv->data[0] == '\\') goto att_end;
 				sb.count = 0;//clean sb
 				if(sv->data[0] == '=') break;//break early so we can check for it
 				++(sv->data); 
@@ -185,6 +212,7 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 		*sv = sv_trim_left(*sv);
 		for(;;){
 			if(sv->data[0] == quote){
+				//printf("values\n");
 				//TODO: bit of a memory leak 
 				//sv_cpy should be replaced with 
 				//a better memory system
@@ -202,7 +230,10 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 			sb_append(&sb,sv->data[0]);
 			++(sv->data);
 		}
+		//printf(SV_Fmt":\'"SV_Fmt"\'\n",SV_Arg(key),SV_Arg(value));
 		//TODO: check for null strs
+		if(key.count == 0) defer(false);
+		if(value.count == 0) value = SV_JS_NULL;
 		da_append(&out->atts,((Attribute){.name = key,.value = value}));
 	}
 defer:
@@ -212,10 +243,11 @@ defer:
 
 void print_tab(XmlTab tab){
 	//TODO: care about depth
-	printf("atts_count = %zu\n",tab.atts.count);
-	printf("type = "SV_Fmt"\n",SV_Arg(tab.type));
+	//printf("atts_count = %zu\n",tab.atts.count);
+	printf("?type = "SV_Fmt"\n",SV_Arg(tab.type));
+	printf("    ?self_closing = %d\n",tab.self_closing);
 	da_foreach(Attribute,att,&tab.atts){
-		printf("\t"SV_Fmt" = ""\'"SV_Fmt"\'""\n",SV_Arg(att->name),SV_Arg(att->value));
+		printf("    "SV_Fmt" = ""\'"SV_Fmt"\'""\n",SV_Arg(att->name),SV_Arg(att->value));
 	}
 }
 
@@ -228,6 +260,9 @@ int main(void){
 	XmlTab tab = {0};//needed for the da
 	if(!get_next_tab(&content,&tab)) defer(1);
 	print_tab(tab);
+	if(!get_next_tab(&content,&tab)) defer(1);
+	print_tab(tab);
+
 defer:
 	//TODO: make it not complain
 	//mz_free((void*)content.data);
