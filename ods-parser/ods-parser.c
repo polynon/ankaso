@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+//#include <string.h>
 
 #define NOB_IMPLEMENTATION
 #define NOB_STRIP_PREFIXS
@@ -14,8 +15,14 @@
 
 #define DICT_PATH "Ankaso.ods"
 #define DICT_SHEET_NAME "Dictionary"
+#define TABLE_STR "table:table" 
 
-#define SV_JS_NULL (String_View){.count = 4,.data = "NULL"};
+#define SV_JS_NULL sv_from_cstr("null")
+
+
+// :output buffers
+String_Builder ankaso_js_buffer = {0};
+String_Builder en_js_buffer = {0};
 
 //TODO: document .ods
 bool get_content(String_View* out){
@@ -83,8 +90,8 @@ typedef enum{
 }XmlTabType;
 
 typedef struct{
-		XmlTabType tab_type;
-	//uint64_t stack_index;//should be enough for everybody
+	XmlTabType tab_type;
+	uint64_t indent;
 	union{
 		String_View type;
 		String_View content;
@@ -113,6 +120,7 @@ static inline bool inc_sv(String_View *sv){
 }
 
 //TODO make this work with stack
+//does not set indent
 bool get_next_tab(String_View *sv,XmlTab* out){
 	//TODO: add better error messages
 	bool result = true; //defer
@@ -303,7 +311,9 @@ defer:
 	return result;
 }
 
-void print_tab(XmlTab tab){
+void print_tab(XmlTab tab,uint64_t indent){
+	//TODO: make it work
+	(void)indent;
 	//TODO: care about depth
 	//printf("atts_count = %zu\n",tab.atts.count);
 	//TODO: print type;
@@ -320,12 +330,14 @@ void print_tab(XmlTab tab){
 			break;
 		}
 		case XM_CLOSE:{
+			TODO("close");
 			printf("</");
 			printf(SV_Fmt,SV_Arg(tab.type));
 			printf(">\n");
 			break;
 		}
 		case XM_CONTENT:{
+			TODO("content");
 			printf("    "SV_Fmt"\n",SV_Arg(tab.content));
 			break;
 		}
@@ -342,24 +354,89 @@ void print_tab(XmlTab tab){
 	}
 }
 
+int get_attribute(XmlTab tab,String_View neddle){
+	//TODO: we assum atts.count can fit in int
+	for(int i = 0; i < (int)tab.atts.count;++i) if(sv_eq(neddle, tab.atts.items[i].name)) return i;
+	return -1;
+}
+
+typedef struct{
+	XmlTab *items;
+	size_t count;
+	size_t capacity;
+}XmlTabs;
+
+bool parse_dict(String_View *content,XmlTabs *tabs){
+	bool result = true;
+	TODO("parse dict");
+defer:
+	return result;
+}
+
 bool parse_tabs(String_View content){
 	bool result = true;
-	XmlTab tab = {0};//needed for the da
-	int tab_i = 1;
+	//needed for the da
+	XmlTabs tabs = {0};//do we need this?
+	XmlTab tab = {0};	
+	uint64_t indent = 0;
+	bool in_dict = false;
 	for(;;){
 		if(content.count == 0) defer(true); //TODO: EOF
 		if(!get_next_tab(&content,&tab)){
-			printf("i = %d\n",tab_i);
-			print_tab(tab);
+			print_tab(tab,indent);
 			defer(false);
 		}
-		++tab_i;
-		//printf("i = %d\n",tab_i++);
-		//print_tab(tab);
+		static_assert(__XmlTabType_count == 4,"update parse_tabs\n");
+		switch(tab.tab_type){
+			case XM_OPEN:{
+				if(sv_eq(tab.type, sv_from_cstr(TABLE_STR))){
+					//TODO: less hardcoding
+					int i = get_attribute(tab,sv_from_cstr("table:name"));
+					if(i < 0) defer(false);//TODO:
+					if(sv_eq(tab.atts.items[i].value,sv_from_cstr(DICT_SHEET_NAME))) 
+						parse_dict(&content,&tabs);
+				}
+				tab.indent = indent;
+				da_append(&tabs,tab);
+				++indent;
+				break;
+			}
+			case XM_CLOSE:{
+				if(sv_eq(tab.type, sv_from_cstr(TABLE_STR))){
+					int i = get_attribute(tab,sv_from_cstr("table:name"));
+					if(i < 0) defer(false);//TODO:error reporting
+					if(sv_eq(tab.atts.items[i].value,sv_from_cstr(DICT_SHEET_NAME)))
+						UNREACHABLE("got dict close in parse tabs");
+				}
+				//TODO: close the tabs behind us
+				--indent;
+				break;
+			}
+			case XM_CONTENT:{
+				tab.indent = indent;
+				da_append(&tabs,tab);
+				break;
+			}
+			case XM_SELF_CONTAINED:{
+				if(sv_eq(tab.type, sv_from_cstr(TABLE_STR))){
+					int i = get_attribute(tab,sv_from_cstr("table:name"));
+					if(i < 0) defer(false);//TODO:error reporting
+					if(sv_eq(tab.atts.items[i].value,sv_from_cstr(DICT_SHEET_NAME)))
+						UNREACHABLE("got dict self_containded in parse tabs");
+				}
+				//TODO: free tab
+				break;
+			}
+			case __XmlTabType_count:UNREACHABLE("XmlTabType_count found in parse_tabs");
+		}
+		//if(in_dict) print_tab(tab,indent);
+		//if(in_dict) printf("indent:%lu\n",indent);	
 	}
 defer:
 	//TODO: make it not complain
+	//otherwise MEMORYLEAK is fine tho
 	//mz_free((void*)content.data);
+	//free(content.data);
 	return result;
 }
 
