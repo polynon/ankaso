@@ -94,18 +94,24 @@ static inline bool is_white_space(char c){
 	return c == ' ' || c == '\n' || c == '\t' || c == '\r';
 }
 
+#define INC_SV(sv) (((sv)->data)++ || (sv)->count >= 0)
+static inline bool inc_sv(String_View *sv){
+	bool result = sv->count > 0;
+	++(sv->data);
+	return result;
+}
+
 //TODO make this work with stack
 bool get_next_tab(String_View *sv,XmlTab* out){
 	//TODO: add better error messages
-	//TODO:	check for eof 
 	bool result = true; //defer
 	bool first = false;
 	*sv = sv_trim_left(*sv);
 	if(sv->data[0] != '<') defer(false);
-	++(sv->data);
+	if(!inc_sv(sv)) defer(false);
 	if(sv->data[0] == '?'){
 		first = true;
-		++(sv->data);
+		if(!inc_sv(sv)) defer(false);
 	}
 	*sv = sv_trim_left(*sv);
 	String_Builder sb = {0};
@@ -114,7 +120,7 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 	if(first) for(;;){
 		if(sv->data[0] == '=' || sv->data[0] == '\\' || sv->data[0] == '>') defer(false);
 		if(is_white_space(sv->data[0]) || sv->data[0] == '?'){
-			++(sv->data);
+			if(!inc_sv(sv)) defer(false);
 			//TODO: bit of a memory leak 
 			//sv_cpy should be replaced with 
 			//a better memory system
@@ -129,12 +135,12 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 			break;
 		}
 		sb_append(&sb,sv->data[0]);
-		++(sv->data);
+		if(!inc_sv(sv)) defer(false);
 	}
 	else for(;;){
 		if(sv->data[0] == '=' || sv->data[0] == '?') defer(false);
 		if(is_white_space(sv->data[0]) || sv->data[0] == '\\' || sv->data[0] == '>'){
-			++(sv->data);
+			if(!inc_sv(sv)) defer(false);
 			//TODO: bit of a memory leak 
 			//sv_cpy should be replaced with 
 			//a better memory system
@@ -149,30 +155,30 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 			break;
 		}
 		sb_append(&sb,sv->data[0]);
-		++(sv->data);
+		if(!inc_sv(sv)) defer(false);
 	}
 	// :attributes parsing
 	for(;;){
 		*sv = sv_trim_left(*sv);
 		if(first && sv->data[0] == '?'){
 			out->self_closing = true;
-			++(sv->data);
+			if(!inc_sv(sv)) defer(false);
 			*sv = sv_trim_left(*sv);
 			if(sv->data[0] != '>') defer(false);
-			++(sv->data);
+			if(!inc_sv(sv)) defer(false);
 			break;
 		}
 		else if(!first && sv->data[0] == '\\'){
 			out->self_closing = true;
-			++(sv->data);
+			if(!inc_sv(sv)) defer(false);
 			*sv = sv_trim_left(*sv);
 			if(sv->data[0] != '>') defer(false);
-			++(sv->data);
+			if(!inc_sv(sv)) defer(false);
 			break;
 		}
 		//this covers the 'first' case
 		else if(sv->data[0] == '>'){
-			++(sv->data); 
+			if(!inc_sv(sv)) defer(false); 
 			break;
 		}
 	//att_end end
@@ -195,20 +201,20 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 				}	
 				sb.count = 0;//clean sb
 				if(sv->data[0] == '=') break;//break early so we can check for it
-				++(sv->data); 
+				if(!inc_sv(sv)) defer(false); 
 				break;
 			}
 			sb_append(&sb,sv->data[0]);
-			++(sv->data); 
+			if(!inc_sv(sv)) defer(false); 
 		}
 		*sv = sv_trim_left(*sv);
 		if(sv->data[0] != '=') defer(false);
-		++(sv->data); 
+		if(!inc_sv(sv)) defer(false); 
 		// :value
 		*sv = sv_trim_left(*sv);
 		char quote = sv->data[0];
 		if(quote != '\"' && quote != '\'') defer(1);
-		++(sv->data); 
+		if(!inc_sv(sv)) defer(false); 
 		*sv = sv_trim_left(*sv);
 		for(;;){
 			if(sv->data[0] == quote){
@@ -223,15 +229,14 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 					printf("OUT OF RAM OH NO!!!!");
 					defer(1);
 				}	
-				++(sv->data); 
+				if(!inc_sv(sv)) defer(false); 
 				sb.count = 0;//clean sb
 				break;
 			}
 			sb_append(&sb,sv->data[0]);
-			++(sv->data);
+			if(!inc_sv(sv)) defer(false);
 		}
 		//printf(SV_Fmt":\'"SV_Fmt"\'\n",SV_Arg(key),SV_Arg(value));
-		//TODO: check for null strs
 		if(key.count == 0) defer(false);
 		if(value.count == 0) value = SV_JS_NULL;
 		da_append(&out->atts,((Attribute){.name = key,.value = value}));
@@ -251,20 +256,25 @@ void print_tab(XmlTab tab){
 	}
 }
 
+bool parse_tabs(String_View content){
+	bool result = true;
+	XmlTab tab = {0};//needed for the da
+	if(!get_next_tab(&content,&tab)) defer(false);
+	print_tab(tab);
+	if(!get_next_tab(&content,&tab)) defer(false);
+	print_tab(tab);
+defer:
+	//TODO: make it not complain
+	//mz_free((void*)content.data);
+	return result;
+}
+
 int main(void){
 	int result = 0;//defer
 	String_View content;
 	if(!get_content(&content)) defer(1);
 	//printf(SV_Fmt,SV_Arg(content));	
-	//TODO: factor this out to own function
-	XmlTab tab = {0};//needed for the da
-	if(!get_next_tab(&content,&tab)) defer(1);
-	print_tab(tab);
-	if(!get_next_tab(&content,&tab)) defer(1);
-	print_tab(tab);
-
+	if(!parse_tabs(content)) defer(1);
 defer:
-	//TODO: make it not complain
-	//mz_free((void*)content.data);
 	return result;
 }
