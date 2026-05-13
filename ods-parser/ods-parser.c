@@ -16,13 +16,29 @@
 #define DICT_PATH "Ankaso.ods"
 #define DICT_SHEET_NAME "Dictionary"
 #define TABLE_STR "table:table" 
+#define OFFICE_ANNOTATION_SV sv_from_cstr("office:annotation")
+#define COLUMN_SV sv_from_cstr("table:table-column")
+#define ROW_SV sv_from_cstr("table:table-row")
+#define CELL_SV sv_from_cstr("table:table-cell")
+#define TEXTP_SV sv_from_cstr("text:p")
+#define TEXTSPAN_SV sv_from_cstr("text:span")
 
 #define SV_JS_NULL sv_from_cstr("null")
 
+// :langs
+#define ROOT sv_from_cstr("root")
+//TODO: have this a x macro or some kinda fo code gen
+#define EN_GENERAL sv_from_cstr("general")
+//this name kinda suck 
+#define EN_ROOT sv_from_cstr("root meaning")
 
 // :output buffers
 String_Builder ankaso_js_buffer = {0};
 String_Builder en_js_buffer = {0};
+
+// :forward decs
+static inline bool is_white_space(char c);
+static inline bool inc_sv(String_View *sv);
 
 //TODO: document .ods
 bool get_content(String_View* out){
@@ -65,6 +81,43 @@ bool get_content(String_View* out){
 	*out = sv;
 defer:
 	mz_zip_reader_end(&zip_archive);
+	return result;
+}
+
+// :json output
+
+typedef struct{//implements da
+	String_View *items;
+	size_t count;
+	size_t capacity;
+}String_Views;
+
+typedef struct{
+	String_View root;
+	String_Views general;
+	String_Views root_meaning;
+}EN_Word;
+
+typedef struct{
+	String_View root;
+}Root_Word;
+
+String_Views get_entrys_from_sv(String_View sv){
+	String_Views result = {0};
+	//String_View start = sv;//TODO:memory leak
+	String_View comp  = sv;
+	for(;;){
+		//TODO: get rid of the commas
+		if(!inc_sv(&sv)) break;	
+		if(is_white_space(sv.data[0])){
+			comp.count = comp.count - sv.count - 1;
+			sv_chop_prefix(&comp,sv_from_cstr(","));
+			da_append(&result,comp);
+			sv = sv_trim_left(sv);//get rid of white spaces
+			comp = sv;
+		}
+	}
+	if(result.count == 0) da_append(&result,comp);//case for one entry
 	return result;
 }
 
@@ -111,7 +164,7 @@ static inline bool is_white_space(char c){
 	return c == ' ' || c == '\n' || c == '\t' || c == '\r';
 }
 
-#define INC_SV(sv) (((sv)->data)++ || (sv)->count >= 0)
+//#define INC_SV(sv) (((sv)->data)++ || (sv)->count >= 0)
 static inline bool inc_sv(String_View *sv){
 	bool result = sv->count != 0;//so we can check the last char
 	++(sv->data);
@@ -366,10 +419,243 @@ typedef struct{
 	size_t capacity;
 }XmlTabs;
 
-bool parse_dict(String_View *content,XmlTabs *tabs){
+bool parse_first_row(String_View *content,XmlTabs *tabs,uint64_t indent){
+	//TODO: this is where we can unhard code the order of the columns
 	bool result = true;
-	TODO("parse dict");
+	++indent;
+	XmlTab tab = {0};
+	for(;;){
+		if(content->count == 0) defer(false); //means we ended premucutly
+		if(!get_next_tab(content,&tab)){
+			defer(false);
+		}
+		static_assert(__XmlTabType_count == 4,"update parse_first_row\n");
+		switch(tab.tab_type){
+			case XM_OPEN:{
+				if(sv_eq(tab.type,ROW_SV)) defer(false);
+				da_append(tabs,tab);
+				++indent;
+				break;
+			}
+			case XM_CLOSE:{
+				if(sv_eq(tab.type,ROW_SV)) defer(true);
+				--indent;
+				//TODO: free mem
+				break;
+			}
+			case XM_CONTENT:{
+				//TODO: free mem
+				break;
+			}
+			case XM_SELF_CONTAINED:{
+				//TODO: free mem
+				break;
+			}
+			case __XmlTabType_count:UNREACHABLE("XmlTabType_count found in parse column in parse_first_row");
+		}
+	}
 defer:
+	--indent;
+	(void)indent;
+	return result;
+}
+
+bool parse_cell(String_View *content,String_View *out,size_t indent){
+	bool result = true;
+
+	String_View save = *content;//used when we return false;
+	size_t saved_indent = ++indent;
+
+	bool found = false;
+	XmlTab tab = {0};
+
+	if(content->count == 0) defer(false); //means we ended premucutly
+	if(!get_next_tab(content,&tab))	defer(false);
+	if(tab.tab_type == XM_OPEN){
+		if(!sv_eq(tab.type,CELL_SV)) defer(false);
+		for(;;){
+			if(content->count == 0) defer(false); //means we ended premucutly
+			if(!get_next_tab(content,&tab))	defer(false);
+			tab.indent = indent;
+
+			static_assert(__XmlTabType_count,"update parse_cell\n");
+			switch(tab.tab_type){
+				case XM_OPEN:{
+					if(found) break;
+					if(sv_eq(tab.type,TEXTP_SV)){
+						if(indent != saved_indent) break;
+						if(content->count == 0)         defer(false); //means we ended premucutly
+						if(!get_next_tab(content,&tab))	defer(false);
+						if(tab.tab_type == XM_OPEN){
+							if(sv_eq(tab.type, TEXTSPAN_SV)){
+								TODO("textspan");
+							}else UNREACHABLE("unexpected type in parse_cell");
+						}
+						else if(tab.tab_type == XM_CONTENT){
+							*out = tab.content;
+						}
+						else UNREACHABLE("unexpected in parce_cell");
+						if(content->count == 0)         defer(false); //means we ended premucutly
+						if(!get_next_tab(content,&tab))	defer(false);
+						if(tab.tab_type != XM_CLOSE)    defer(false);
+						if(!sv_eq(tab.type,TEXTP_SV))   defer(false);
+						found = true;
+					}
+					else{
+						++indent;
+						//da_append(tabs,tab);
+					}
+					break;
+				}
+				case XM_CLOSE:{
+					if(sv_eq(tab.type,CELL_SV)){
+						if(indent != saved_indent) break;
+						if(found){
+							defer(true);
+						}
+						else TODO("not found");
+					}
+					else{
+						--indent;
+					}
+					//TODO: free mem
+					break;
+				}
+				case XM_CONTENT:{
+					TODO("content");
+					//TODO: free mem
+					break;
+				}
+				case XM_SELF_CONTAINED:{
+					TODO("sc");
+					//TODO: free mem
+					break;
+				}
+				case __XmlTabType_count:UNREACHABLE("xmltabtype_count in parse_cell");
+			}
+		}
+		TODO("open");
+	}
+	else if(tab.tab_type == XM_SELF_CONTAINED){
+		if(!sv_eq(tab.type,CELL_SV)) defer(false);
+		*out = SV_JS_NULL;
+		defer(true);
+	}
+	else defer(false);
+defer:
+	return result; 
+}
+
+bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
+	bool result = true;
+	++indent;
+	//EN_Word en_word = {0};
+	//Root_Word root_word = {0};
+	//TODO: unhard code this
+	String_View text;
+	if(!parse_cell(content,&text,indent)) defer(false);//junk
+	if(!parse_cell(content,&text,indent)) defer(false);//general
+	//TODO: writejson
+	if(!parse_cell(content,&text,indent)) defer(false);//root
+	if(!parse_cell(content,&text,indent)) defer(false);//root-meaning
+	String_View sv_saved = *content;
+	XmlTab tab = {0};
+	for(;;){//junk...
+		sv_saved = *content;
+		if(content->count == 0) defer(false); //means we ended premucutly
+		if(!get_next_tab(content,&tab)) defer(false);
+		//printf(SV_Fmt"\n",SV_Arg(tab.type));
+		//printf(SV_Fmt"\n",SV_Arg(tab.type));
+		if(tab.tab_type == XM_CLOSE){
+			if(sv_eq(tab.type,ROW_SV)) break; else UNREACHABLE("unexpected in parse_row");
+		}
+		*content = sv_saved;
+		if(!parse_cell(content,&text,indent)) defer(false);
+	}
+defer:
+	--indent;//TODO: check indent properly
+	return result;
+}
+
+bool parse_dict(String_View *content,XmlTabs *tabs,uint64_t indent){
+	//TODO: unhard code the columns by reading the first row
+	bool result = true;
+	XmlTab tab = {0};
+	String_View last_tab = *content;
+	++indent;
+	// :skip columns
+	for(;;){	
+		if(content->count == 0) defer(false); //means we ended premucutly
+		if(!get_next_tab(content,&tab)) defer(false);
+		static_assert(__XmlTabType_count == 4,"update parse_dict\n");
+		switch(tab.tab_type){
+			case XM_OPEN:{
+				if(sv_eq(tab.type,ROW_SV)) goto over_columns;
+				TODO("open");
+				break;
+			}
+			case XM_CLOSE:{
+				if(sv_eq(tab.type,ROW_SV)) goto over_columns;
+				TODO("close");
+				break;
+			}
+			case XM_CONTENT:{
+				if(sv_eq(tab.type,ROW_SV)) goto over_columns;
+				TODO("content");
+				break;
+			}
+			case XM_SELF_CONTAINED:{
+				if(sv_eq(tab.type,ROW_SV)) goto over_columns;
+				break;
+			}
+			case __XmlTabType_count:UNREACHABLE("XmlTabType_count found in parse column in parse_dict");
+		}
+		last_tab = *content;
+	}
+	over_columns:
+	// :rows
+	bool first_row = true;
+	*content = last_tab;
+	for(;;){
+		if(content->count == 0) defer(false); //means we ended premucutly
+		if(!get_next_tab(content,&tab)) defer(false);
+		static_assert(__XmlTabType_count == 4,"update parse_dict\n");
+		switch(tab.tab_type){
+			case XM_OPEN:{
+				if(sv_eq(tab.type,ROW_SV)){	
+					if(first_row){ parse_first_row(content,tabs,indent); first_row = false;}
+					else parse_row(content,tabs,indent);
+				}
+				else{
+					printf(SV_Fmt"\n",SV_Arg(tab.type));
+					TODO("adsfsadf");
+				}
+				++indent;
+				break;
+			}
+			case XM_CLOSE:{
+				//TODO: free memory
+				TODO("OPEN row");
+				break;
+			}
+			case XM_CONTENT:{
+				//TODO: free memory
+				TODO("OPEN row");
+				break;
+			}
+			case XM_SELF_CONTAINED:{
+				//TODO: free memory
+				if(sv_eq(tab.type,ROW_SV)){}
+				printf(SV_Fmt"\n",SV_Arg(tab.type));
+				break;
+			}
+			case __XmlTabType_count:UNREACHABLE("XmlTabType_count found in parse column in parse_dict");
+		}
+	}
+	over_rows:
+defer:
+	TODO("parse dict");
+	--indent;//TODO: check indent properly
 	return result;
 }
 
@@ -379,7 +665,6 @@ bool parse_tabs(String_View content){
 	XmlTabs tabs = {0};//do we need this?
 	XmlTab tab = {0};	
 	uint64_t indent = 0;
-	bool in_dict = false;
 	for(;;){
 		if(content.count == 0) defer(true); //TODO: EOF
 		if(!get_next_tab(&content,&tab)){
@@ -393,8 +678,10 @@ bool parse_tabs(String_View content){
 					//TODO: less hardcoding
 					int i = get_attribute(tab,sv_from_cstr("table:name"));
 					if(i < 0) defer(false);//TODO:
-					if(sv_eq(tab.atts.items[i].value,sv_from_cstr(DICT_SHEET_NAME))) 
-						parse_dict(&content,&tabs);
+					if(sv_eq(tab.atts.items[i].value,sv_from_cstr(DICT_SHEET_NAME))){
+						if(!parse_dict(&content,&tabs,indent)) defer(false);
+						goto over_switch;
+					}
 				}
 				tab.indent = indent;
 				da_append(&tabs,tab);
@@ -429,6 +716,7 @@ bool parse_tabs(String_View content){
 			}
 			case __XmlTabType_count:UNREACHABLE("XmlTabType_count found in parse_tabs");
 		}
+		over_switch:
 		//if(in_dict) print_tab(tab,indent);
 		//if(in_dict) printf("indent:%lu\n",indent);	
 	}
