@@ -1,1 +1,2 @@
-This is a website created for a simple IAL Ankaso
+This is a website built for a website Ankaso
+discord: https://discord.gg/FptyR39Vcw

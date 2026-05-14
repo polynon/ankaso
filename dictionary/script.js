@@ -22,6 +22,12 @@ async function loadDictionary() {
                 // Create entry div
                 const entryDiv = document.createElement('div');
                 entryDiv.className = 'dictionary-entry';
+                entryDiv.id = key;
+                entryDiv.style.cursor = 'pointer';
+                entryDiv.addEventListener('click', () => {
+                    scrollToElement(entryDiv);
+                    window.history.replaceState(null, null, '#' + key);
+                });
                 
                 // Create root and o-form line
                 const rootLine = document.createElement('div');
@@ -78,6 +84,38 @@ async function loadDictionary() {
         
         // Initial render of all keys
         renderResults(allKeys);
+        
+        // Function to scroll to element with offset
+        function scrollToElement(element) {
+            const header = document.querySelector('.top-bar');
+            const headerHeight = header ? header.offsetHeight : 0;
+            const offset = headerHeight + 300; // Account for header and some padding
+            const elementTop = element.getBoundingClientRect().top + window.scrollY;
+            window.scrollTo({
+                top: elementTop - offset,
+                behavior: 'smooth'
+            });
+        }
+        
+        // Handle initial hash
+        if (window.location.hash) {
+            const hash = window.location.hash.substring(1);
+            const element = document.getElementById(hash);
+            if (element) {
+                scrollToElement(element);
+            }
+        }
+        
+        // Handle hash changes (e.g., when clicking entries or manual navigation)
+        window.addEventListener('hashchange', () => {
+            if (window.location.hash) {
+                const hash = window.location.hash.substring(1);
+                const element = document.getElementById(hash);
+                if (element) {
+                    scrollToElement(element);
+                }
+            }
+        });
         
         // Add search functionality
         const searchInput = document.querySelector('.search-input');
