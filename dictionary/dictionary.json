@@ -4,7 +4,7 @@
   },
   "ai": {
     "root": "ai",
-    "o-form": "ayo"
+    "o-form": "aio"
   },
   "aku": {
     "root": "aku",
@@ -24,7 +24,7 @@
   },
   "ante": {
     "root": "ante",
-    "o-form": "anteyo"
+    "o-form": "anteio"
   },
   "asan": {
     "root": "asan",
@@ -36,15 +36,15 @@
   },
   "au": {
     "root": "au",
-    "o-form": "awo"
+    "o-form": "auo"
   },
-  "awan": {
-    "root": "awan",
-    "o-form": "awano"
+  "auan": {
+    "root": "auan",
+    "o-form": "auano"
   },
-  "awi": {
-    "root": "awi",
-    "o-form": "awio"
+  "aui": {
+    "root": "aui",
+    "o-form": "auio"
   },
   "en": {
     "root": "en"

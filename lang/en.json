@@ -48,12 +48,12 @@
     "root": ["aerial", "blow"],
     "o-form": ["air", "wind"]
   },
-  "awan": {
+  "auan": {
     "general": ["animal"],
     "root": ["animal"],
     "o-form": ["animal"]
   },
-  "awi": {
+  "aui": {
     "general": ["hurt", "ouch", "pain"],
     "root": ["hurt", "ouch", "painful", "damage"],
     "o-form": ["pain", "damage"]

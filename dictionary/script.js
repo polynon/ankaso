@@ -25,6 +25,7 @@ async function loadDictionary() {
                 entryDiv.id = key;
                 entryDiv.style.cursor = 'pointer';
                 entryDiv.addEventListener('click', () => {
+                    setActiveEntry(key);
                     scrollToElement(entryDiv);
                     window.history.replaceState(null, null, '#' + key);
                 });
@@ -80,8 +81,42 @@ async function loadDictionary() {
                 
                 resultsContainer.appendChild(entryDiv);
             });
+
+            restoreActiveEntry();
         }
         
+        let activeEntryKey = null;
+
+        function setActiveEntry(key) {
+            const existing = document.querySelector('.dictionary-entry.active');
+            if (existing) {
+                existing.classList.remove('active');
+            }
+
+            activeEntryKey = key;
+            if (!key) {
+                return;
+            }
+
+            const next = document.getElementById(key);
+            if (next) {
+                next.classList.add('active');
+            }
+        }
+
+        function restoreActiveEntry() {
+            if (!activeEntryKey) {
+                return;
+            }
+
+            const next = document.getElementById(activeEntryKey);
+            if (next) {
+                next.classList.add('active');
+            } else {
+                activeEntryKey = null;
+            }
+        }
+
         // Initial render of all keys
         renderResults(allKeys);
         
@@ -100,6 +135,7 @@ async function loadDictionary() {
         // Handle initial hash
         if (window.location.hash) {
             const hash = window.location.hash.substring(1);
+            setActiveEntry(hash);
             const element = document.getElementById(hash);
             if (element) {
                 scrollToElement(element);
@@ -110,6 +146,7 @@ async function loadDictionary() {
         window.addEventListener('hashchange', () => {
             if (window.location.hash) {
                 const hash = window.location.hash.substring(1);
+                setActiveEntry(hash);
                 const element = document.getElementById(hash);
                 if (element) {
                     scrollToElement(element);
