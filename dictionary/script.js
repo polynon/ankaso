@@ -43,7 +43,7 @@ async function loadDictionary() {
                 detailsContainer.appendChild(list);
             };
 
-            const rootTranslations = transData.general && transData.general.length > 0 ? transData.general : transData.root || [];
+            const rootTranslations = transData.root && transData.root.length > 0 ? transData.root : transData.root || [];
             if (rootTranslations.length > 0) {
                 createList(rootTranslations);
             }
