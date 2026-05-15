@@ -12,32 +12,24 @@ async function loadDictionary() {
         const detailsContainer = document.querySelector('.details-container');
 
         function renderDetails(key) {
-            const selectedKey = key && dictionary[key] ? key : 'ai';
-            const entry = dictionary[selectedKey];
-            const transData = translations[selectedKey] || {};
+            if (!key || !dictionary[key]) {
+                detailsContainer.innerHTML = '';
+                detailsContainer.style.display = 'none';
+                return;
+            }
 
+            const entry = dictionary[key];
+            const transData = translations[key] || {};
+
+            detailsContainer.style.display = 'block';
             detailsContainer.innerHTML = '';
 
             const title = document.createElement('h2');
             title.className = 'details-title';
-            title.textContent = entry.root || selectedKey;
+            title.textContent = entry.root || key;
             detailsContainer.appendChild(title);
 
-            if (entry['o-form']) {
-                const subtitle = document.createElement('p');
-                subtitle.className = 'details-subtitle';
-                subtitle.textContent = `O-form: ${entry['o-form']}`;
-                detailsContainer.appendChild(subtitle);
-            }
-
-            const addSection = (heading, values) => {
-                const section = document.createElement('div');
-                section.className = 'details-section';
-
-                const headingEl = document.createElement('h3');
-                headingEl.textContent = heading;
-                section.appendChild(headingEl);
-
+            const createList = values => {
                 const list = document.createElement('div');
                 list.className = 'details-list';
 
@@ -48,44 +40,49 @@ async function loadDictionary() {
                     list.appendChild(item);
                 });
 
-                section.appendChild(list);
-                detailsContainer.appendChild(section);
+                detailsContainer.appendChild(list);
             };
 
-            if (transData.general && transData.general.length > 0) {
-                addSection('General meanings', transData.general);
+            const rootTranslations = transData.general && transData.general.length > 0 ? transData.general : transData.root || [];
+            if (rootTranslations.length > 0) {
+                createList(rootTranslations);
             }
 
-            if (transData.root && transData.root.length > 0) {
-                addSection('Root meanings', transData.root);
-            }
+            if (entry['o-form']) {
+                const oFormSection = document.createElement('div');
+                oFormSection.className = 'details-section';
 
-            if (transData['o-form'] && transData['o-form'].length > 0) {
-                addSection('O-form meanings', transData['o-form']);
+                const oFormHeading = document.createElement('h2');
+                oFormHeading.className = 'details-title';
+                oFormHeading.textContent = entry['o-form'];
+                oFormSection.appendChild(oFormHeading);
+
+                if (transData['o-form'] && transData['o-form'].length > 0) {
+                    const list = document.createElement('div');
+                    list.className = 'details-list';
+                    transData['o-form'].forEach(value => {
+                        const item = document.createElement('span');
+                        item.className = 'details-item';
+                        item.textContent = value;
+                        list.appendChild(item);
+                    });
+                    oFormSection.appendChild(list);
+                }
+
+                detailsContainer.appendChild(oFormSection);
             }
 
             if (transData.description) {
-                const description = document.createElement('div');
-                description.className = 'details-section';
-                const headingEl = document.createElement('h3');
-                headingEl.textContent = 'Description';
-                description.appendChild(headingEl);
 
-                const body = document.createElement('p');
-                body.className = 'details-description';
-                body.textContent = transData.description;
-                description.appendChild(body);
-                detailsContainer.appendChild(description);
+                const list = document.createElement('div');
+                list.className = 'details-list';
+                const item = document.createElement('span');
+                item.className = 'details-item';
+                item.textContent = transData.description;
+                list.appendChild(item);
+
+                detailsContainer.appendChild(list);
             }
-
-            if (transData.tags && transData.tags.length > 0) {
-                addSection('Tags', transData.tags);
-            }
-
-            const note = document.createElement('p');
-            note.className = 'details-note';
-            note.innerHTML = 'Rendered from <code>dictionary.json</code> and <code>en.json</code>.';
-            detailsContainer.appendChild(note);
         }
 
         // Function to render results

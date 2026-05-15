@@ -120,7 +120,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
-    width: min(100%, 80rem);
+    width: min(100%, 60rem);
     max-width: 100%;
 }
 
@@ -132,32 +132,22 @@ body {
     align-items: start;
 }
 
-.details-container {
-    position: sticky;
-    top: clamp(6rem, 7vw, 7rem);
-    align-self: start;
-    max-height: calc(100vh - clamp(6rem, 7vw, 7rem) - 2rem);
-    overflow-y: auto;
-    padding: 1.2rem;
-    border-radius: clamp(1rem, 3vw, 1.5rem);
-    background: var(--window);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 2rem 3rem rgba(0, 0, 0, 0.08);
-}
-
 .search-input {
     position: fixed;
     top: 5rem;
+    left: 50%;
+    transform: translateX(-50%);
     width: min(100%, 25rem);
     padding: clamp(0.5rem, 1.5vw, 0.75rem);
     font-size: clamp(1rem, 3vw, 1.5rem);
     font-family: var(--font);
     color: var(--text_highlight);
     background-color: var(--window);
-    border: 0.15rem solid var(--window-highlight);
+    border: 0.2rem solid var(--window-highlight);
     border-radius: clamp(0.75rem, 2vw, 1rem);
     outline: none;
     box-sizing: border-box;
+    box-shadow: 0 0.5rem 0.5rem var(--shadow);
 }
 
 .search-input::placeholder {
@@ -170,61 +160,12 @@ body {
 }
 
 .dictionary-results {
-    margin-top: 1rem;
+    margin-top: 5rem;
     width: 100%;
     display: flex;
     flex-direction: column;
     margin-bottom: 10rem;
     gap: 0.55rem;
-}
-
-.details-title {
-    margin: 0 0 0.45rem;
-    font-size: clamp(1.75rem, 3vw, 2.4rem);
-    color: var(--text-highlight);
-}
-
-.details-subtitle {
-    margin: 0 0 1.25rem;
-    color: var(--text-dim);
-    font-size: clamp(0.95rem, 2vw, 1.1rem);
-}
-
-.details-section {
-    margin-top: 1.35rem;
-}
-
-.details-section h3 {
-    margin: 0 0 0.55rem;
-    font-size: clamp(1rem, 2vw, 1.15rem);
-    color: var(--text);
-}
-
-.details-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.55rem;
-}
-
-.details-item {
-    display: inline-flex;
-    padding: 0.45rem 0.8rem;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--text);
-    font-size: clamp(0.8rem, 1.4vw, 0.95rem);
-}
-
-.details-description {
-    margin: 0.4rem 0 0;
-    color: var(--text-dim);
-    line-height: 1.6;
-}
-
-.details-note {
-    margin: 1.75rem 0 0;
-    color: var(--text-dim);
-    font-size: clamp(0.8rem, 1.2vw, 0.95rem);
 }
 
 .dictionary-entry {
@@ -320,7 +261,54 @@ body {
     font-style: italic;
 }
 
+/* Details */
+
+.details-container {
+    position: sticky;
+    top: clamp(8rem, 24vw, 10rem);
+    align-self: start;
+    max-height: calc(100vh - clamp(6rem, 7vw, 7rem) - 2rem);
+    overflow-y: auto;
+    padding: 1.2rem;
+    border-radius: clamp(1rem, 3vw, 1.5rem);
+    background: var(--window-dark);
+    border: 0.2rem solid var(--window);
+    box-shadow: 0 1rem 1rem var(--shadow);
+}
+
+.details-title {
+    margin: 0 0 0.45rem;
+    font-size: clamp(1rem, 8vw, 1.75rem);
+    color: var(--text-highlight);
+}
+
+.details-section {
+    margin-top: 1.35rem;
+}
+
+.details-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+}
+
+.details-item {
+    display: inline-flex;
+    padding: 0.45rem 0.8rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    font-size: clamp(0.8rem, 1.4vw, 0.95rem);
+}
+
+.details-description {
+    margin: 0.4rem 0 0;
+    color: var(--text-dim);
+    line-height: 1.6;
+}
+
 :root {
+    --shadow: oklch(0 0 0 / 0.5);
     --background-dark: oklch(0.16 0.004 285);
     --window-dark: oklch(0.18 0.008 270);
     --window: oklch(0.22 0.01 260);
