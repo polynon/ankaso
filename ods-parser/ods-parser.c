@@ -181,11 +181,6 @@ defer:
 	return result;
 }
 
-// :json output
-
-
-
-
 String_Views get_entrys_from_sv(String_View sv){
 	String_Views result = {0};
 	//String_View start = sv;//TODO:memory leak
@@ -232,6 +227,7 @@ static inline bool inc_sv(String_View *sv){
 bool get_next_tab(String_View *sv,XmlTab* out){
 	//TODO: add better error messages
 	bool result = true; //defer
+	*out = (XmlTab){0};//TODO:
 
 	String_Builder sb = {0};
 	bool first = false;
@@ -864,8 +860,8 @@ bool parse_tabs(String_View content){
 					//TODO: less hardcoding
 					int i = get_attribute(tab,sv_from_cstr("table:name"));
 					if(i < 0) defer(false);
+					//printf(SV_Fmt"\n",SV_Arg(tab.atts.items[i].value));
 					if(sv_eq(tab.atts.items[i].value,DICT_SHEET_SV)){
-						printf("parsing dict\n");
 						if(!parse_dict(&content,&tabs,indent)) defer(false);
 						--indent;
 						break;
@@ -877,12 +873,6 @@ bool parse_tabs(String_View content){
 				tab.indent = --indent;
 				da_append(&tabs,tab);
 				if(!close_tab(&tabs,tab)) defer(false);
-				if(sv_eq(tab.type, sv_from_cstr(TABLE_STR))){
-					int i = get_attribute(tab,sv_from_cstr("table:name"));
-					if(i < 0) defer(false);//TODO:error reporting
-					if(sv_eq(tab.atts.items[i].value,sv_from_cstr(DICT_SHEET_NAME)))
-						UNREACHABLE("got dict close in parse tabs");
-				}
 				break;
 			}
 			case XM_CONTENT:{
