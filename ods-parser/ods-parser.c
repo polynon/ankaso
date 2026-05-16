@@ -73,8 +73,17 @@ switch(tab.tab_type){
 String_Builder ankaso_js_buffer = {0};
 String_Builder en_js_buffer = {0};
 
+//TODO: put structs and declarations in ods-parser.h
 // :structs
-typedef struct{//implements da
+/*
+ * da is a "type" given in nob.h
+ * which allows for dynamic arrays
+ * which requires 
+ * any *items
+ * size_t count
+ * size_t capacity
+ */
+typedef struct{
 	String_View *items;
 	size_t count;
 	size_t capacity;
@@ -95,8 +104,7 @@ typedef struct{
 	String_View value;
 }Attribute;
 
-//interfaces with nob::da
-typedef struct{	
+typedef struct{
 	Attribute *items;
 	size_t count;
 	size_t capacity;
@@ -126,6 +134,12 @@ typedef struct{
 	size_t capacity;
 }XmlTabs;
 
+/*
+ * quick reason why .ods as the input
+ * .ods are just a bunch of .xml files
+ * ziped together where all the content
+ * of the sheets are stored in content.xml
+ */
 
 // :forward decs
 static inline bool is_white_space(char c);
@@ -137,41 +151,40 @@ static inline String_Builder sv_to_sb(String_View sv){
 	return (String_Builder){.count = sv.count,.capacity = sv.count,.items = (void*)sv.data};
 }
 
-//TODO: document .ods
 bool get_content(String_View* out){
 	/*
 	 * miniz is only used with this function
 	 * and it's a rather big thing for what we
 	 * so TODO: replace miniz with a smaller lib
 	 *
-	 * this is the unziper of ther zip
+	 * this is the unziper of the zip in the .ods file
 	 * which also grabs the content.xml
 	 */
 	bool result = true;//defer
 	mz_zip_archive zip_archive;
 	memset(&zip_archive, 0, sizeof(zip_archive));
 
+	nob_log(NOB_INFO,"unziping %s",DICT_PATH);
 	mz_bool status = mz_zip_reader_init_file(&zip_archive, DICT_PATH, 0);
 	if (!status) {
-		//TODO: factor out ankaso.ods
-		printf("Could not open Ankaso.ods as zip file.\n");
+		nob_log(NOB_ERROR,"Could not open %s as zip file",DICT_PATH);
 		defer(false);
 	}
 	
+	nob_log(NOB_INFO,"grabing content.xml");
 	int file_i = mz_zip_reader_locate_file(&zip_archive,"content.xml",NULL,0);
 	if(file_i < 0){
-		//TODO: factor out sheet_name
-		printf("could not find content.xml in ankaso.ods\n");
+		nob_log(NOB_ERROR,"Could find content.xml in zip");
 		defer(false);
 	}
 
 	size_t size;
 	//TODO: maybe this needs to use custom alocator
 	//or memcpy
+	nob_log(NOB_INFO,"extracting content.xml from zip to heap");
 	char* pBuf = mz_zip_reader_extract_to_heap(&zip_archive, file_i, &size, 0);	
 	if(!pBuf){
-		//TODO: factor out content.xml
-		printf("failed to move content.xml to heap\n");
+		nob_log(NOB_ERROR,"Could not extract content.xml to heap");
 		defer(false);
 	}
 	String_View sv = {.count = size,.data = pBuf};
@@ -182,6 +195,16 @@ defer:
 }
 
 String_Views get_entrys_from_sv(String_View sv){
+	/*
+	 * the list in the spreed sheeet
+	 * are seperated by a comma and a space but not
+	 * when there is a newline so to make parsing
+	 * then it is only a newline
+	 * example
+	 * 	a, ai\n
+	 * 	ayo
+	 * therefore we split by whitespace and chop commas
+	 */
 	String_Views result = {0};
 	String_View comp = sv;
 	for(;;){
@@ -216,14 +239,19 @@ static inline bool is_white_space(char c){
 
 //#define INC_SV(sv) (((sv)->data)++ || (sv)->count >= 0)
 static inline bool inc_sv(String_View *sv){
+	/*
+	 * this function is used instead of nob_shift_right
+	 * because we need to get know if it's empty
+	*/
 	bool result = sv->count != 0;//so we can check the last char
 	++(sv->data);
 	--(sv->count);
 	return result;
 }
-
-//TODO make this work with stack
-//does not set indent
+/*
+ * this function takes a buffer shifts it
+ * grabs the next tab
+ */
 bool get_next_tab(String_View *sv,XmlTab* out){
 	//TODO: add better error messages
 	bool result = true; //defer
@@ -242,8 +270,6 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 			if(!inc_sv(sv)) defer(false);
 		}
 		out->content = sv_cpy(sb_to_sv(sb));
-		//printf("\n|"SV_Fmt"|\n",SV_Arg(sb_to_sv(sb)));
-		//(void)getchar();
 		if(out->content.data == NULL){
 			printf("OUT OF RAM OH NO!!!!");
 			defer(false);
@@ -264,6 +290,8 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 	*sv = sv_trim_left(*sv);
 	// :first
 	if(first) for(;;){
+		//TODO: this should only get used as the first tab is 
+		//TODO: complint with xml 1.0
 		if(sv->data[0] == '=' || sv->data[0] == '/' || sv->data[0] == '>'){
 			printf("unexepected \'%c\' for tab\n",sv->data[0]);
 			defer(false);
@@ -309,7 +337,6 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 		sb_append(&sb,sv->data[0]);
 		if(!inc_sv(sv)) defer(false);
 	}
-	//printf("type = "SV_Fmt"\n",SV_Arg(out->type));
 	// :attributes parsing
 	for(;;){
 		*sv = sv_trim_left(*sv);
@@ -416,46 +443,14 @@ defer:
 }
 
 void print_tab(XmlTab tab,uint64_t indent){
-	//TODO: make it work
+	/* TODO:
+	 * this function was writen for debuging
+	 * but broke early on a new version
+	 * should be written for easier debuging
+	 */
+	(void)tab;	
 	(void)indent;
-	//TODO: care about depth
-	//printf("atts_count = %zu\n",tab.atts.count);
-	//TODO: print type;
-	//printf("    ?self_closing = %d\n",tab.self_closing);
-	static_assert(__XmlTabType_count == 4,"update print tab\n");
-	switch(tab.tab_type){
-		case XM_OPEN:{
-			printf("<");
-			printf(SV_Fmt"\n",SV_Arg(tab.type));
-			da_foreach(Attribute,att,&(tab.atts)){
-				printf("    "SV_Fmt":""\'"SV_Fmt"\'""\n",SV_Arg(att->name),SV_Arg(att->value));
-			}
-			printf(">\n");
-			break;
-		}
-		case XM_CLOSE:{
-			TODO("close");
-			printf("</");
-			printf(SV_Fmt,SV_Arg(tab.type));
-			printf(">\n");
-			break;
-		}
-		case XM_CONTENT:{
-			TODO("content");
-			printf("    "SV_Fmt"\n",SV_Arg(tab.content));
-			break;
-		}
-		case XM_SELF_CONTAINED:{
-			printf("<");
-			printf(SV_Fmt"\n",SV_Arg(tab.type));
-			da_foreach(Attribute,att,&(tab.atts)){
-				printf("    "SV_Fmt":""\'"SV_Fmt"\'""\n",SV_Arg(att->name),SV_Arg(att->value));
-			}
-			printf("/>\n");
-			break;
-		}
-		case __XmlTabType_count:UNREACHABLE("XmlTabTpye_count found in print_tab");
-	}
+	TODO("print tab");
 }
 
 void sb_json_close(String_Builder *sb,char end){
@@ -465,6 +460,9 @@ void sb_json_close(String_Builder *sb,char end){
 }
 	
 void sb_append_json_sv(String_Builder *sb,String_View sv){
+	/*
+	 * used to put key and value pairs for json
+	 */
 	sv = sv_trim(sv);
 	sb_append(sb,'\"');
 	do{
@@ -487,14 +485,20 @@ void sb_append_json_svs(String_Builder *sb,String_Views svs){
 }
 
 int get_attribute(XmlTab tab,String_View neddle){
-	//TODO: we assum atts.count can fit in int
+	/* TODO:
+	 * negative indecates a failure so
+	 * att.count is size_t which is grater than
+	 * positive int
+	 */
 	for(int i = 0; i < (int)tab.atts.count;++i) if(sv_eq(neddle, tab.atts.items[i].name)) return i;
 	return -1;
 }
 
 
 bool parse_first_row(String_View *content,XmlTabs *tabs,uint64_t indent){
-	//TODO: this is where we can unhard code the order of the columns
+	/* TODO: 
+	 * this is where we can unhard code the order of the columns
+	 */
 	bool result = true;
 	++indent;
 	XmlTab tab = {0};
@@ -535,8 +539,12 @@ defer:
 }
 
 bool close_tab(XmlTabs *tabs,XmlTab tab){
-	//TODO: when this cleans memory
-	//we need to make sure we don't have use after frees
+	/*
+	 * TODO: when this cleans memory
+	 * we need to make sure we don't have use after frees
+	 * when we stop leaking memory
+	 * like we are using js
+	 */
 	assert(tab.tab_type == XM_CLOSE);
 	bool result = true;
 	for(;;){
@@ -586,10 +594,8 @@ bool parse_content(String_View *content,XmlTabs *tabs,String_Builder *out,size_t
 			case XM_CONTENT:{
 				tab.indent = indent;
 				da_append(tabs,tab);
-				sb_append_sv(&sb,tab.content);//does a memcpy
-				//printf("|"SV_Fmt"|\n",SV_Arg(tab.content));
-				//(void)getchar();
-				sb_append(&sb,' ');//does a memcpy
+				sb_append_sv(&sb,tab.content);
+				sb_append(&sb,' ');
 				break;
 			}
 			case XM_SELF_CONTAINED:{
@@ -602,11 +608,8 @@ bool parse_content(String_View *content,XmlTabs *tabs,String_Builder *out,size_t
 		}
 	}
 defer:
-	//printf("|"SV_Fmt"|\n",SV_Arg(sb_to_sv(sb)));
-	//(void)getchar();
 	sb_append_sv(out,sb_to_sv(sb));//a bit hacky
 	sb_free(sb);
-	//printf("result = %d\n",result);
 	return result;
 }
 
@@ -674,10 +677,6 @@ bool parse_cell(String_View *content,XmlTabs *tabs,String_View *out,size_t inden
 			tab.indent = --indent;
 			da_append(tabs,tab);
 			UNREACHABLE("expected cell but found a close type tab");
-			//printf("|"SV_Fmt"|\n",SV_Arg(tab.type));
-			//if(!close_tab(tabs,tab)) defer(false);
-			//if(sv_eq(tab.type,ROW_SV)) defer(true);//don't append anything
-			//if(!sv_eq(tab.type,CELL_SV)) TODO("not a cell");
 			break;
 		}
 		case XM_SELF_CONTAINED:{
@@ -704,16 +703,22 @@ defer:
 }
 
 bool pull_cell(String_View *content,XmlTabs *tabs,uint64_t indent,String_View *out){
+	/*
+	 * return true means to check the data
+	 * SV_EMPTY is error
+	 * return false means end of the row
+	 * mostly empty rows
+	 */
 	String_View sv_saved = *content;
 	XmlTab tab = {0};
 	if(content->count == 0){
 		nob_log(NOB_ERROR,"Premature EOF");//TODO: put location of __line__ __file__
 		*out = SV_EMPTY;
-		return true;//we return true so any loops can catch the errors
+		return true;
 	}
 	if(!get_next_tab(content,&tab)){
 		*out = SV_EMPTY;
-		return true;//we return true so any loops can catch the errors
+		return true;
 	}
 
 	static_assert(__XmlTabType_count == 4,"update pull_cell\n");
@@ -722,7 +727,7 @@ bool pull_cell(String_View *content,XmlTabs *tabs,uint64_t indent,String_View *o
 		da_append(tabs,tab);
 		if(!close_tab(tabs,tab)){
 			*out = SV_EMPTY;
-			return true;//we return true so any loops can catch the errors
+			return true;
 		}
 		if(sv_eq(tab.type,ROW_SV)) return false; 
 		else UNREACHABLE("unexpected in pull_cell");
@@ -731,17 +736,23 @@ bool pull_cell(String_View *content,XmlTabs *tabs,uint64_t indent,String_View *o
 	*content = sv_saved;
 	if(!parse_cell(content,tabs,out,indent)){
 		*out = SV_EMPTY;
-		return true;//we return true so any loops can catch the errors
+		return true;
 	}
+	//parse_cell can leave out empty so we cast that as "null" so as not to 
+	//be iterpreted as an error
 	if(IS_SV_EMPTY(*out)) *out = SV_JS_NULL;
 	return true;
 }
 
 bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
+	/* TODO:
+	 * this is a really hard coded function only used for parse_dict
+	 * we will need to abstract this to make it work
+	 * with parse_names and parse_compounds
+	 */
 	bool result = true;
 	EN_Word en_word = {0};
 	Ankaso_Word ankaso_word = {0};
-	//TODO: unhard code this
 
 	String_View text = {0};
 	if(!pull_cell(content,tabs,indent,&text)){
@@ -796,19 +807,18 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
 		if(IS_SV_EMPTY(text)) defer(false);
 	}
 defer:
-	//printf("result = %d\n",result);
-	//TODO("parse_row");
 	return result;
 }
 
 bool parse_dict(String_View *content,XmlTabs *tabs,uint64_t indent){
-	//TODO: unhard code the columns by reading the first row
 	bool result = true;
 	XmlTab tab = {0};
 	String_View last_tab = *content;
 	size_t start = indent;
 	// :skip columns
 	//TODO: factor skip columns
+	//TODO: unhard code the columns by reading the first row
+	nob_log(NOB_INFO,"skiping columns");
 	for(;;){	
 		if(content->count == 0){
 			printf("premuture EOF\n");
@@ -856,6 +866,7 @@ bool parse_dict(String_View *content,XmlTabs *tabs,uint64_t indent){
 	}
 	over_columns:
 	// :rows
+	nob_log(NOB_INFO,"parsing rows and writing json to buffers");
 	bool first_row = true;
 	*content = last_tab;
 	sb_append_sv(&ankaso_js_buffer,sv_from_cstr("{\n"));
@@ -876,7 +887,7 @@ bool parse_dict(String_View *content,XmlTabs *tabs,uint64_t indent){
 				da_append(tabs,tab);
 				if(sv_eq(tab.type,ROW_SV)){	
 					if(first_row){ 
-						if(!parse_first_row(content,tabs,indent)) defer(false);
+						if(!parse_first_row(content,tabs,indent)) defer(false); 
 						first_row = false;
 					}
 					else if(!parse_row(content,tabs,indent)) defer(false);
@@ -921,6 +932,7 @@ defer:
 }
 
 bool parse_tabs(String_View content){
+	nob_log(NOB_INFO,"parsing content.xml");
 	bool result = true;
 	//needed for the da
 	XmlTabs tabs = {0};//do we need this?
@@ -941,6 +953,7 @@ bool parse_tabs(String_View content){
 					if(i < 0) defer(false);
 					//printf(SV_Fmt"\n",SV_Arg(tab.atts.items[i].value));
 					if(sv_eq(tab.atts.items[i].value,DICT_SHEET_SV)){
+						nob_log(NOB_INFO,"parsing "SV_Fmt,SV_Arg(DICT_SHEET_SV));
 						if(!parse_dict(&content,&tabs,indent)) defer(false);
 						--indent;
 						break;
@@ -982,19 +995,20 @@ defer:
 bool dump_json(){
 	bool result = true;
 	if(!mkdir_if_not_exists(OUTPUT_DIR)) defer(false);
+	nob_log(NOB_INFO,"dumping ankaso_json_buffer to dictinary.json");
 	if(!write_entire_file(OUTPUT_DIR"/dictinary.json",ankaso_js_buffer.items,ankaso_js_buffer.count)) defer(false);
 	// :langs
 	if(!mkdir_if_not_exists(LANG_OUTPUT_DIR)) defer(false);
+	nob_log(NOB_INFO,"dumping en_json_buffer to en.json");
 	if(!write_entire_file(LANG_OUTPUT_DIR"/en.json",en_js_buffer.items,en_js_buffer.count)) defer(false);
 defer:
 	return result;
 }
 
 int main(void){
-	int result = 0;//defer
+	int result = 0;
 	String_View content;
 	if(!get_content(&content)) defer(1);
-	//printf(SV_Fmt,SV_Arg(content));	
 	if(!parse_tabs(content)) defer(1);
 	//TODO: free content
 	if(!dump_json()) defer(1);
