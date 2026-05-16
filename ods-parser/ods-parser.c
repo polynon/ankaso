@@ -88,7 +88,7 @@ typedef struct{
 
 typedef struct{
 	String_View root;
-}Root_Word;
+}Ankaso_Word;
 
 typedef struct{
 	String_View name;
@@ -457,6 +457,32 @@ void print_tab(XmlTab tab,uint64_t indent){
 	}
 }
 
+void sb_json_close(String_Builder *sb,char end){
+	char c = da_pop(sb);//da_pop asserts 
+	if(c != ',') sb_append(sb,c);
+	sb_append(sb,end);
+}
+	
+void sb_append_json_sv(String_Builder *sb,String_View sv){
+	sb_append(sb,'\"');
+	do{
+		char c = sv.data[0];
+		if(c == '\"') sb_append(sb,'\\');
+		sb_append(sb,c);
+	}while(inc_sv(&sv));
+	sb_append(sb,'\"');
+}
+
+void sb_append_json_svs(String_Builder *sb,String_Views svs){
+	sb_append(sb,'[');
+	for(size_t i = 0; i < svs.count;++i){
+		String_View sv = svs.items[i];
+		sb_append_json_sv(sb,sv);
+		sb_append(sb,',');
+	}
+	sb_json_close(sb,']');
+}
+
 int get_attribute(XmlTab tab,String_View neddle){
 	//TODO: we assum atts.count can fit in int
 	for(int i = 0; i < (int)tab.atts.count;++i) if(sv_eq(neddle, tab.atts.items[i].name)) return i;
@@ -683,7 +709,7 @@ bool pull_cell(String_View *content,XmlTabs *tabs,uint64_t indent,String_View *o
 		return true;//we return true so any loops can catch the errors
 	}
 
-	static_assert(__XmlTabType_count == 4,"update parse_row\n");
+	static_assert(__XmlTabType_count == 4,"update pull_cell\n");
 	if(tab.tab_type == XM_CLOSE){
 		tab.indent = --indent;
 		da_append(tabs,tab);
@@ -706,19 +732,58 @@ bool pull_cell(String_View *content,XmlTabs *tabs,uint64_t indent,String_View *o
 
 bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
 	bool result = true;
-	//EN_Word en_word = {0};
-	//Root_Word root_word = {0};
+	EN_Word en_word = {0};
+	Ankaso_Word ankaso_word = {0};
 	//TODO: unhard code this
-	//TODO: writejson
+
 	String_View text;
-	if(!pull_cell(content,tabs,indent,&text)) defer(true);//junk
+	if(!pull_cell(content,tabs,indent,&text)){
+		//no root
+		defer(true);//junk
+	}
+	if(IS_SV_EMPTY(text)) defer(false);	
+
+	if(!pull_cell(content,tabs,indent,&text)){
+		//no root
+		defer(true);//general
+	}
 	if(IS_SV_EMPTY(text)) defer(false);
-	if(!pull_cell(content,tabs,indent,&text)) defer(true);//general
+	en_word.general = get_entrys_from_sv(text);
+	
+	if(!pull_cell(content,tabs,indent,&text)){
+		TODO("root early json");
+		defer(true);//root
+	}
 	if(IS_SV_EMPTY(text)) defer(false);
-	if(!pull_cell(content,tabs,indent,&text)) defer(true);//root
+	en_word.root     = text;
+	ankaso_word.root = text;
+
+	if(!pull_cell(content,tabs,indent,&text)){
+		TODO("root-meaning early json");
+		defer(true);//root-meaning
+	}
 	if(IS_SV_EMPTY(text)) defer(false);
-	if(!pull_cell(content,tabs,indent,&text)) defer(true);//root-meaning
-	if(IS_SV_EMPTY(text)) defer(false);
+	en_word.root_meaning = get_entrys_from_sv(text);
+
+	//TODO: factor out this svs
+	// :write ankaso_word
+	sb_append_json_sv(&ankaso_js_buffer,ankaso_word.root);
+	sb_append_sv(&ankaso_js_buffer,sv_from_cstr(": {\n"));
+	sb_append_sv(&ankaso_js_buffer,sv_from_cstr("\"root\":"));
+	sb_append_json_sv(&ankaso_js_buffer,ankaso_word.root);
+	sb_append(&ankaso_js_buffer,'\n');
+	sb_append_sv(&ankaso_js_buffer,sv_from_cstr("},\n"));
+
+	// :write en_word
+	sb_append_json_sv(&en_js_buffer,en_word.root);
+	sb_append_sv(&en_js_buffer,sv_from_cstr(": {\n"));
+	sb_append_sv(&en_js_buffer,sv_from_cstr("\"root\":"));
+	sb_append_json_svs(&en_js_buffer,en_word.root_meaning);
+	sb_append_sv(&en_js_buffer,sv_from_cstr(",\n"));
+	sb_append_sv(&en_js_buffer,sv_from_cstr("\"general\":"));
+	sb_append_json_svs(&en_js_buffer,en_word.general);
+	sb_append(&en_js_buffer,'\n');
+	sb_append_sv(&en_js_buffer,sv_from_cstr("},\n"));
 	
 	while(pull_cell(content,tabs,indent,&text)){//junk...
 		if(IS_SV_EMPTY(text)) defer(false);
@@ -736,6 +801,7 @@ bool parse_dict(String_View *content,XmlTabs *tabs,uint64_t indent){
 	String_View last_tab = *content;
 	size_t start = indent;
 	// :skip columns
+	//TODO: factor skip columns
 	for(;;){	
 		if(content->count == 0){
 			printf("premuture EOF\n");
@@ -785,6 +851,8 @@ bool parse_dict(String_View *content,XmlTabs *tabs,uint64_t indent){
 	// :rows
 	bool first_row = true;
 	*content = last_tab;
+	sb_append_sv(&ankaso_js_buffer,sv_from_cstr("{\n"));
+	sb_append_sv(&en_js_buffer,sv_from_cstr("{\n"));
 	for(;;){
 		if(content->count == 0){
 			printf("premuture EOF\n");
@@ -816,7 +884,7 @@ bool parse_dict(String_View *content,XmlTabs *tabs,uint64_t indent){
 				if(!close_tab(tabs,tab)) defer(false);
 				//this -1 is kinda ugly
 				if(tab.indent == start - 1){
-					if(sv_eq(tab.type,TABLE_SV)) defer(true);
+					if(sv_eq(tab.type,TABLE_SV)) goto over_rows;
 				}
 				break;
 			}
@@ -838,6 +906,9 @@ bool parse_dict(String_View *content,XmlTabs *tabs,uint64_t indent){
 			case __XmlTabType_count:UNREACHABLE("XmlTabType_count found in parse column in parse_dict");
 		}
 	}
+	over_rows:
+	sb_json_close(&ankaso_js_buffer,'}');
+	sb_json_close(&en_js_buffer,'}');
 defer:
 	return result;
 }
@@ -897,12 +968,28 @@ defer:
 	return result;
 }
 
+#define OUTPUT_DIR "output"
+#define LANG_OUTPUT_DIR OUTPUT_DIR"/lang"
+
+bool dump_json(){
+	bool result = true;
+	if(!mkdir_if_not_exists(OUTPUT_DIR)) defer(false);
+	if(!write_entire_file(OUTPUT_DIR"/dictinary.json",ankaso_js_buffer.items,ankaso_js_buffer.count)) defer(false);
+	// :langs
+	if(!mkdir_if_not_exists(LANG_OUTPUT_DIR)) defer(false);
+	if(!write_entire_file(LANG_OUTPUT_DIR"/en.json",en_js_buffer.items,en_js_buffer.count)) defer(false);
+defer:
+	return result;
+}
+
 int main(void){
 	int result = 0;//defer
 	String_View content;
 	if(!get_content(&content)) defer(1);
 	//printf(SV_Fmt,SV_Arg(content));	
 	if(!parse_tabs(content)) defer(1);
+	//TODO: free content
+	if(!dump_json()) defer(1);
 defer:
 	return result;
 }
