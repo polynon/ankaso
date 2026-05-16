@@ -3,8 +3,9 @@
 #include "nob.h"
 
 #define cc "cc"
-#define warnings "-Wextra","-Wall"
 #define Olevel "-o0"
+#define debug_flags "-fsanitize=address","-g"
+#define warnings "-Wextra","-Wall"// debug_flags
 
 int main(int argc, char **argv){	
 	GO_REBUILD_URSELF(argc,argv);

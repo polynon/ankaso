@@ -183,13 +183,13 @@ defer:
 
 String_Views get_entrys_from_sv(String_View sv){
 	String_Views result = {0};
-	//String_View start = sv;//TODO:memory leak
-	String_View comp  = sv;
+	String_View comp = sv;
 	for(;;){
-		//TODO: get rid of the commas
 		if(!inc_sv(&sv)) break;	
 		if(is_white_space(sv.data[0])){
-			comp.count = comp.count - sv.count - 1;
+			comp.count = comp.count - sv.count;
+			comp = sv_trim_right(comp);
+
 			sv_chop_prefix(&comp,sv_from_cstr(","));
 			da_append(&result,comp);
 			sv = sv_trim_left(sv);//get rid of white spaces
@@ -234,7 +234,7 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 	*sv = sv_trim_left(*sv);
 	if(sv->data[0] != '<'){
 		out->tab_type = XM_CONTENT;
-		if(!inc_sv(sv)) defer(false);
+
 		for(;;){
 			//TODO: parse quotes
 			if(sv->data[0] == '<') break;
@@ -242,11 +242,12 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 			if(!inc_sv(sv)) defer(false);
 		}
 		out->content = sv_cpy(sb_to_sv(sb));
+		//printf("\n|"SV_Fmt"|\n",SV_Arg(sb_to_sv(sb)));
+		//(void)getchar();
 		if(out->content.data == NULL){
 			printf("OUT OF RAM OH NO!!!!");
 			defer(false);
 		}	
-		//sb.count = 0;//clean sb
 		defer(true);
 	}
 	if(!inc_sv(sv)) defer(false);
@@ -464,12 +465,14 @@ void sb_json_close(String_Builder *sb,char end){
 }
 	
 void sb_append_json_sv(String_Builder *sb,String_View sv){
+	sv = sv_trim(sv);
 	sb_append(sb,'\"');
 	do{
 		char c = sv.data[0];
 		if(c == '\"') sb_append(sb,'\\');
 		sb_append(sb,c);
 	}while(inc_sv(&sv));
+	(void)da_pop(sb);//pop the null terminator
 	sb_append(sb,'\"');
 }
 
@@ -584,6 +587,8 @@ bool parse_content(String_View *content,XmlTabs *tabs,String_Builder *out,size_t
 				tab.indent = indent;
 				da_append(tabs,tab);
 				sb_append_sv(&sb,tab.content);//does a memcpy
+				//printf("|"SV_Fmt"|\n",SV_Arg(tab.content));
+				//(void)getchar();
 				sb_append(&sb,' ');//does a memcpy
 				break;
 			}
@@ -597,6 +602,8 @@ bool parse_content(String_View *content,XmlTabs *tabs,String_Builder *out,size_t
 		}
 	}
 defer:
+	//printf("|"SV_Fmt"|\n",SV_Arg(sb_to_sv(sb)));
+	//(void)getchar();
 	sb_append_sv(out,sb_to_sv(sb));//a bit hacky
 	sb_free(sb);
 	//printf("result = %d\n",result);
@@ -736,7 +743,7 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
 	Ankaso_Word ankaso_word = {0};
 	//TODO: unhard code this
 
-	String_View text;
+	String_View text = {0};
 	if(!pull_cell(content,tabs,indent,&text)){
 		//no root
 		defer(true);//junk
@@ -772,7 +779,7 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
 	sb_append_sv(&ankaso_js_buffer,sv_from_cstr("\"root\":"));
 	sb_append_json_sv(&ankaso_js_buffer,ankaso_word.root);
 	sb_append(&ankaso_js_buffer,'\n');
-	sb_append_sv(&ankaso_js_buffer,sv_from_cstr("},\n"));
+	sb_append_sv(&ankaso_js_buffer,sv_from_cstr("},"));
 
 	// :write en_word
 	sb_append_json_sv(&en_js_buffer,en_word.root);
@@ -783,7 +790,7 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
 	sb_append_sv(&en_js_buffer,sv_from_cstr("\"general\":"));
 	sb_append_json_svs(&en_js_buffer,en_word.general);
 	sb_append(&en_js_buffer,'\n');
-	sb_append_sv(&en_js_buffer,sv_from_cstr("},\n"));
+	sb_append_sv(&en_js_buffer,sv_from_cstr("},"));
 	
 	while(pull_cell(content,tabs,indent,&text)){//junk...
 		if(IS_SV_EMPTY(text)) defer(false);
@@ -922,6 +929,7 @@ bool parse_tabs(String_View content){
 	for(;;){
 		if(content.count == 0) defer(true); //TODO: EOF
 		if(!get_next_tab(&content,&tab)) defer(false);
+
 		static_assert(__XmlTabType_count == 4,"update parse_tabs\n");
 		switch(tab.tab_type){
 			case XM_OPEN:{
