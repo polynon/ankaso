@@ -7,9 +7,14 @@
 #define debug_flags "-fsanitize=address","-g"
 #define warnings "-Wextra","-Wall"// debug_flags
 
+#define miniz_dir "include/miniz"
+
 bool compile_miniz(void){
 	Cmd cmd = {0};
-	//TODO("compile miniz");
+	cmd_append(&cmd,"cmake","-S",miniz_dir,"-B",miniz_dir);
+	if(!cmd_run(&cmd)) return 1;
+	cmd_append(&cmd,"make","-C",miniz_dir);
+	if(!cmd_run(&cmd)) return 1;
 	return true;
 }
 
