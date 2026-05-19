@@ -30,6 +30,8 @@
 
 #define SV_EMPTY (String_View){.data = 0,.count = 0};
 #define IS_SV_EMPTY(sv) ((sv).data == 0 && (sv).count == 0)
+
+#define sv_free(sv) NOB_FREE((void*)((sv).data))
 // :empty switch for your copypasting needs
 /*
 static_assert(__XmlTabType_count == 0,"update FUNCTION_NAME\n");
@@ -146,6 +148,66 @@ static inline bool is_white_space(char c);
 static inline bool inc_sv(String_View *sv);
 bool parse_textspan(String_View *content,XmlTabs *tabs,String_Builder *out,size_t indent,String_View end);
 bool parse_content(String_View *content,XmlTabs *tabs,String_Builder *out,size_t indent,String_View end);
+String_View sv_cpy(String_View sv);
+
+// :memory
+#define HASH_TABLE_SIZE 1024*1024 // more than needed
+// hash_table_size should fit in int for errors
+static_assert((int)(1 << 30) > (int)(HASH_TABLE_SIZE),"hash table size is bigger than positive side of int");
+typedef struct{//soa
+	String_View svs[HASH_TABLE_SIZE];
+	size_t ref_counts[HASH_TABLE_SIZE];
+}RefHashTable;
+
+RefHashTable reftable = {0};
+
+size_t hash_from_sv(String_View sv){
+	//TODO: very bad hash function
+	size_t hash = 0;
+	do{
+		char c = sv.data[0];
+		hash += (13 * (c + 69)) % HASH_TABLE_SIZE;
+	}while(inc_sv(&sv));
+	return hash;
+}
+
+int hash_get_sv(String_View sv){
+	//return -1 when the sv was not found in the hash table
+	size_t hash_i = hash_from_sv(sv);
+	size_t i = hash_i;
+	for(;;){
+		if(reftable.ref_counts[i] > 0 && sv_eq(sv,reftable.svs[i])) return i;
+		if((i = (i + 1) % HASH_TABLE_SIZE ) == hash_i) break;
+	}
+	return -1;
+}
+
+String_View hash_add_sv(String_View sv){
+	{//check if already exsits
+		int i = hash_get_sv(sv);
+		if(i >= 0){ reftable.ref_counts[i] += 1; return reftable.svs[i]; }
+	}
+	//add new sv to hashtable 
+	size_t hash_i = hash_from_sv(sv);
+	size_t i = hash_i;
+	String_View out = sv_cpy(sv);
+	for(;;){
+		if(reftable.ref_counts[i] == 0){
+			reftable.svs[i] = out;
+			reftable.ref_counts[i] += 1;
+			return reftable.svs[i];
+		}
+		if((i = (i + 1) % HASH_TABLE_SIZE ) == hash_i) break;
+	}
+	assert(false && "all slots in hash table filled");
+}
+
+void hash_remove_sv(String_View sv){
+	int i = hash_get_sv(sv);
+	if(i < 0) assert(false && "double free");
+	reftable.ref_counts[i] -= 1;
+	if(reftable.ref_counts[i] == 0) sv_free(reftable.svs[i]);
+}
 
 static inline String_Builder sv_to_sb(String_View sv){
 	return (String_Builder){.count = sv.count,.capacity = sv.count,.items = (void*)sv.data};
@@ -982,10 +1044,7 @@ bool parse_tabs(String_View content){
 		}
 	}
 defer:
-	//TODO: make it not complain
-	//otherwise MEMORYLEAK is fine tho
-	//mz_free((void*)content.data);
-	//free(content.data);
+	da_free(tabs);
 	return result;
 }
 
@@ -1010,7 +1069,7 @@ int main(void){
 	String_View content;
 	if(!get_content(&content)) defer(1);
 	if(!parse_tabs(content)) defer(1);
-	//TODO: free content
+	sb_free(sv_to_sb(content));
 	if(!dump_json()) defer(1);
 defer:
 	return result;
