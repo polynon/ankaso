@@ -148,7 +148,7 @@ static inline bool is_white_space(char c);
 static inline bool inc_sv(String_View *sv);
 bool parse_textspan(String_View *content,XmlTabs *tabs,String_Builder *out,size_t indent,String_View end);
 bool parse_content(String_View *content,XmlTabs *tabs,String_Builder *out,size_t indent,String_View end);
-bool close_tab(XmlTabs *tabs,XmlTab tab);
+bool close_tab(XmlTabs *tabs);
 String_View sv_cpy(String_View sv);
 
 // :memory
@@ -213,7 +213,8 @@ String_View hash_add_sv(String_View sv){
 
 void hash_remove_sv(String_View sv){
 	int i = hash_get_sv(sv);
-	if(i < 0) assert(false && "double free");
+	//if(i < 0) assert(false && "double free");
+	if(i < 0) return;
 	reftable.ref_counts[i] -= 1;
 	if(reftable.ref_counts[i] == 0) sv_free(reftable.svs[i]);
 }
@@ -546,10 +547,10 @@ bool parse_first_row(String_View *content,XmlTabs *tabs,uint64_t indent){
 				tab.indent = --indent;
 				da_append(tabs,tab);
 				if(sv_eq(tab.type,ROW_SV)){
-					close_tab(tabs,tab);
+					close_tab(tabs);
 					defer(true);
 				}
-				close_tab(tabs,tab);
+				close_tab(tabs);
 				break;
 			}
 			case XM_CONTENT:{
@@ -569,13 +570,22 @@ defer:
 	return result;
 }
 
-bool close_tab(XmlTabs *tabs,XmlTab tab){
+void free_tab(XmlTab tab){
+	hash_remove_sv(tab.type);
+	for(size_t i = 0;i < tab.atts.count;++i){
+		hash_remove_sv(tab.atts.items[i].name);
+		hash_remove_sv(tab.atts.items[i].value);
+	}
+}
+
+bool close_tab(XmlTabs *tabs){
 	/*
 	 * TODO: when this cleans memory
 	 * we need to make sure we don't have use after frees
 	 * when we stop leaking memory
 	 * like we are using js
 	 */
+	XmlTab tab = da_pop(tabs);
 	assert(tab.tab_type == XM_CLOSE);
 	bool result = true;
 	for(;;){
@@ -587,9 +597,14 @@ bool close_tab(XmlTabs *tabs,XmlTab tab){
 		}
 		if(comp.indent == tab.indent
 		&& sv_eq(comp.type,tab.type) 
-		&& comp.tab_type == XM_OPEN) defer(true); 
+		&& comp.tab_type == XM_OPEN){
+			free_tab(comp);
+			defer(true); 
+		}
+		free_tab(comp);
 	}
 defer:
+	free_tab(tab);
 	return result;
 }
 
@@ -618,10 +633,10 @@ bool parse_content(String_View *content,XmlTabs *tabs,String_Builder *out,size_t
 				tab.indent = --indent;
 				da_append(tabs,tab);
 				if(sv_eq(tab.type,end)){
-					if(!close_tab(tabs,tab)) defer(false);
+					if(!close_tab(tabs)) defer(false);
 					defer(true);
 				}
-				if(!close_tab(tabs,tab)) defer(false);
+				if(!close_tab(tabs)) defer(false);
 				TODO("close");
 				break;
 			}
@@ -684,10 +699,10 @@ bool parse_cell(String_View *content,XmlTabs *tabs,String_View *out,size_t inden
 						tab.indent = --indent;
 						da_append(tabs,tab);
 						if(sv_eq(tab.type,CELL_SV)){
-							if(!close_tab(tabs,tab)) defer(false);
+							if(!close_tab(tabs)) defer(false);
 							defer(true);
 						}
-						if(!close_tab(tabs,tab)) defer(false);
+						if(!close_tab(tabs)) defer(false);
 						break;
 					}
 					case XM_CONTENT:{
@@ -766,13 +781,13 @@ bool pull_cell(String_View *content,XmlTabs *tabs,uint64_t indent,String_View *o
 		da_append(tabs,tab);
 		
 		if(sv_eq(tab.type,ROW_SV)){
-			if(!close_tab(tabs,tab)){
+			if(!close_tab(tabs)){
 				*out = SV_EMPTY;
 				return true;
 			}
 			return false;
 		}
-		if(!close_tab(tabs,tab)){
+		if(!close_tab(tabs)){
 			*out = SV_EMPTY;
 			return true;
 		}
@@ -949,10 +964,10 @@ bool parse_dict(String_View *content,XmlTabs *tabs,uint64_t indent){
 				da_append(tabs,tab);
 				//this -1 is kinda ugly
 				if(tab.indent == start - 1 && sv_eq(tab.type,TABLE_SV)){
-					if(!close_tab(tabs,tab)) defer(false);
+					if(!close_tab(tabs)) defer(false);
 					goto over_rows;
 				}
-				if(!close_tab(tabs,tab)) defer(false);
+				if(!close_tab(tabs)) defer(false);
 				break;
 			}
 			case XM_CONTENT:{
@@ -1013,7 +1028,7 @@ bool parse_tabs(String_View content){
 			case XM_CLOSE:{
 				tab.indent = --indent;
 				da_append(&tabs,tab);
-				if(!close_tab(&tabs,tab)) defer(false);
+				if(!close_tab(&tabs)) defer(false);
 				break;
 			}
 			case XM_CONTENT:{

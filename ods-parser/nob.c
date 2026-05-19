@@ -22,7 +22,13 @@ int main(int argc, char **argv){
 	GO_REBUILD_URSELF(argc,argv);
 	if(!compile_miniz()) return 1;
 	Cmd cmd = {0};
-	cmd_append(&cmd,cc,warnings,Olevel,"ods-parser.c","-o","ods-parser","-L./include/miniz/","-lminiz");
+	cmd_append(&cmd,cc);
+	cmd_append(&cmd,warnings);
+	cmd_append(&cmd,Olevel);
+	//cmd_append(&cmd,debug_flags);
+	cmd_append(&cmd,"ods-parser.c");
+	cmd_append(&cmd,"-o","ods-parser");
+	cmd_append(&cmd,"-L./include/miniz/","-lminiz");
 	if(!cmd_run(&cmd)) return 1;
 	cmd_append(&cmd,"./ods-parser");
 	if(!cmd_run(&cmd)) return 1;
