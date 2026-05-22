@@ -3,8 +3,9 @@
 #include "nob.h"
 
 #define cc "cc"
+//#define cc "clang"
 #define Olevel "-o0"
-#define debug_flags "-fsanitize=address","-g"
+#define debug_flags "-g","-fsanitize=address"
 #define warnings "-Wextra","-Wall"// debug_flags
 
 #define miniz_dir "include/miniz"

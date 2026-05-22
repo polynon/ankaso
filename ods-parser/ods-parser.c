@@ -235,7 +235,7 @@ HashIndex hash_add_sv(String_View sv){
 	for(;;){
 		if(reftable.ref_counts[i] == 0){
 			reftable.svs[i] = out;
-			reftable.ref_counts[i] += 1;
+			reftable.ref_counts[i] = 1;
 			reftable.generation[i] = ++gen_i;
 			return (HashIndex){.generation = reftable.generation[i],.index = i};
 		}
@@ -290,7 +290,7 @@ bool get_content(String_View* out){
 		defer(false);
 	}
 
-	size_t size;
+	size_t size = 0;
 	//TODO: maybe this needs to use custom alocator
 	//or memcpy
 	nob_log(NOB_INFO,"extracting content.xml from zip to heap");
@@ -336,8 +336,6 @@ String_Views get_entrys_from_sv(String_View sv){
 	return result;
 }
 
-// :xml parsing
-
 String_View sv_cpy(String_View sv){
 	char *temp = malloc(sv.count);
 	if(temp == NULL) return (String_View){.data = NULL};
@@ -367,6 +365,7 @@ static inline bool inc_sv(String_View *sv){
  */
 bool get_next_tab(String_View *sv,XmlTab* out){
 	//TODO: add better error messages
+	assert(sv->count > 0 && "sv count was not check before passing to get_next_tab");
 	bool result = true; //defer
 	*out = (XmlTab){0};
 
@@ -406,7 +405,7 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 			defer(false);
 		}
 		if(is_white_space(sv->data[0]) || sv->data[0] == '?'){
-			out->content = hash_add_sv(sb_to_sv(sb));
+			out->type = hash_add_sv(sb_to_sv(sb));
 			if(sv->data[0] != '?') if(!inc_sv(sv)) defer(false);
 			sb.count = 0;//clean sb
 			break;
@@ -420,7 +419,7 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 			defer(false);
 		}
 		if(is_white_space(sv->data[0]) || sv->data[0] == '/' || sv->data[0] == '>'){
-			out->content = hash_add_sv(sb_to_sv(sb));
+			out->type = hash_add_sv(sb_to_sv(sb));
 			if(sv->data[0] != '/' && sv->data[0] != '>') if(!inc_sv(sv)) defer(false);
 			sb.count = 0;//clean sb
 			break;
@@ -507,7 +506,8 @@ bool get_next_tab(String_View *sv,XmlTab* out){
 			defer(false);
 		}
 		//if(get_sv_from_hashindex(value).count == 0) value = SV_JS_NULL;//why did i do this?
-		da_append(&out->atts,((Attribute){.name = key,.value = value}));
+		Attribute att = (Attribute){.name = key,.value = value};
+		da_append(&(out->atts),att);
 	}
 defer:
 	sb_free(sb);//could avoid this with static
@@ -538,11 +538,12 @@ void sb_append_json_sv(String_Builder *sb,String_View sv){
 	sv = sv_trim(sv);
 	sb_append(sb,'\"');
 	do{
+		if(sv.count == 0) break;
 		char c = sv.data[0];
 		if(c == '\"') sb_append(sb,'\\');
 		sb_append(sb,c);
 	}while(inc_sv(&sv));
-	(void)da_pop(sb);//pop the null terminator
+	if(sv.count != 0) (void)da_pop(sb);//pop the null terminator
 	sb_append(sb,'\"');
 }
 
@@ -618,6 +619,7 @@ void free_tab(XmlTab tab){
 		hash_remove_by_hashindex(tab.atts.items[i].name);
 		hash_remove_by_hashindex(tab.atts.items[i].value);
 	}
+	da_free(tab.atts);
 }
 
 bool close_tab(XmlTabs *tabs){
@@ -779,7 +781,6 @@ bool parse_cell(String_View *content,XmlTabs *tabs,HashIndex *out,size_t indent)
 			da_append(tabs,tab);
 			if(!sv_eq(get_sv_from_hashindex(tab.type),CELL_SV)) TODO("not a cell");
 
-			if(!sv_eq(get_sv_from_hashindex(tab.type),CELL_SV)) defer(false);
 			//*out = SV_JS_NULL;
 			break;
 		}
@@ -802,7 +803,7 @@ defer:
 bool pull_cell(String_View *content,XmlTabs *tabs,uint64_t indent,HashIndex *out){
 	/*
 	 * return true means to check the data
-	 * SV_EMPTY is error
+	 * HASHINDEX_EMPTY is error
 	 * return false means end of the row
 	 * mostly empty rows
 	 */
@@ -837,6 +838,7 @@ bool pull_cell(String_View *content,XmlTabs *tabs,uint64_t indent,HashIndex *out
 		else UNREACHABLE("unexpected in pull_cell");
 	}
 
+	free_tab(tab);
 	*content = sv_saved;
 	if(!parse_cell(content,tabs,out,indent)){
 		*out = HASHINDEX_EMPTY;
@@ -859,11 +861,13 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
 	Ankaso_Word ankaso_word = {0};
 
 	HashIndex hi = {0};
-	if(!pull_cell(content,tabs,indent,&hi)){
+	HashIndex junk = {0};
+	if(!pull_cell(content,tabs,indent,&junk)){
 		//no root
 		defer(true);//junk
 	}
-	if(hi.generation == 0) defer(false) 	;
+	if(junk.generation == 0) defer(false) 	;
+	hash_remove_by_hashindex(junk);
 
 	if(!pull_cell(content,tabs,indent,&hi)){
 		//no root
@@ -878,7 +882,7 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
 	}
 	if(hi.generation == 0) defer(false);
 	en_word.root     = hi;
-	ankaso_word.root = hi;
+	ankaso_word.root = hi;//TODO: add hash_dup_entry
 
 	if(!pull_cell(content,tabs,indent,&hi)){
 		TODO("root-meaning early json");
@@ -907,12 +911,17 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
 	sb_append(&en_js_buffer,'\n');
 	sb_append_sv(&en_js_buffer,sv_from_cstr("},"));
 	
-	while(pull_cell(content,tabs,indent,&hi)){//junk...
-		if(hi.generation == 0) defer(false);
+	while(pull_cell(content,tabs,indent,&junk)){//junk...
+		if(junk.generation == 0) defer(false);
+		hash_remove_by_hashindex(junk);
 	}
-defer:
+	// free memory
+	hash_remove_by_hashindex(en_word.root);
+	//hash_remove_by_hashindex(ankaso_word.root);
+
 	da_free(en_word.general);
 	da_free(en_word.root_meaning);
+defer:
 	return result;
 }
 
@@ -1046,6 +1055,11 @@ bool parse_tabs(String_View content){
 	XmlTab tab = {0};	
 	uint64_t indent = 0;
 	for(;;){
+		/*
+		static size_t i = 0;
+		++i;
+		printf("i:%lu\n",i);
+		*/
 		if(content.count == 0) defer(true); //TODO: EOF
 		if(!get_next_tab(&content,&tab)) defer(false);
 
@@ -1090,6 +1104,7 @@ bool parse_tabs(String_View content){
 		}
 	}
 defer:
+	if(tabs.count > 1) nob_log(NOB_WARNING,"number left in da besides first tab after parsing: %lu",tabs.count - 1);
 	while(tabs.count > 0){
 		//free any leftover tabs
 		XmlTab t = da_pop(&tabs);
@@ -1117,19 +1132,26 @@ defer:
 
 int main(void){
 	int result = 0;
-	String_View content;
+	String_View content = {0};
 	if(!get_content(&content)) defer(1);
 	if(!parse_tabs(content)) defer(1);
-	#if 0
-	size_t bc = 0;
+	#if 1
+	size_t bc  = 0;
+	size_t svs = 0;
 	for(size_t i = 0;i < HASH_TABLE_SIZE;++i){
-		if(reftable.ref_counts[i] > 0){
+		//TODO: find the issue
+		//clang is being overly pandantic to get any usfully information out of it
+		//and gcc is crap
+		if(reftable.ref_counts[i] > 0)
+		{
 			String_View sv = reftable.svs[i];
 			bc += sv.count;
+			++svs;
+			//printf(SV_Fmt"\n",SV_Arg(sv));
 			sv_free(sv);
 		}
 	}
-	printf("bytes not freed = %zu\n",bc);
+	if(bc > 0) nob_log(NOB_WARNING,"bytes freed and left in table: %zu,svs_count: %zu",bc,svs);
 	#endif
 	sv_free(content);
 	if(!dump_json()) defer(1);
