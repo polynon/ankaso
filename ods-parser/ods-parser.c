@@ -251,6 +251,13 @@ void hash_remove_by_hashindex(HashIndex hi){
 	if(reftable.ref_counts[hi.index] == 0) sv_free(reftable.svs[hi.index]);
 }
 
+void hash_remove_by_hashindices(HashIndices his){
+	for(size_t i = 0;i < his.count;++i){
+		hash_remove_by_hashindex(his.items[i]);
+	}
+	da_free(his);
+}
+
 void hash_remove_sv(String_View sv){
 	int i = hash_get_sv(sv);
 	//if(i < 0) assert(false && "double free");
@@ -860,14 +867,14 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
 	EN_Word en_word = {0};
 	Ankaso_Word ankaso_word = {0};
 
+	HashIndices his = {0};
 	HashIndex hi = {0};
-	HashIndex junk = {0};
-	if(!pull_cell(content,tabs,indent,&junk)){
+	if(!pull_cell(content,tabs,indent,&hi)){
 		//no root
 		defer(true);//junk
 	}
-	if(junk.generation == 0) defer(false) 	;
-	hash_remove_by_hashindex(junk);
+	if(hi.generation == 0) defer(false) 	;
+	da_append(&his,hi);
 
 	if(!pull_cell(content,tabs,indent,&hi)){
 		//no root
@@ -875,6 +882,7 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
 	}
 	if(hi.generation == 0) defer(false);
 	en_word.general = get_entrys_from_sv(get_sv_from_hashindex(hi));
+	da_append(&his,hi);
 	
 	if(!pull_cell(content,tabs,indent,&hi)){
 		TODO("root early json");
@@ -882,7 +890,8 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
 	}
 	if(hi.generation == 0) defer(false);
 	en_word.root     = hi;
-	ankaso_word.root = hi;//TODO: add hash_dup_entry
+	ankaso_word.root = hi;
+	da_append(&his,hi);
 
 	if(!pull_cell(content,tabs,indent,&hi)){
 		TODO("root-meaning early json");
@@ -890,6 +899,7 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
 	}
 	if(hi.generation == 0) defer(false);
 	en_word.root_meaning = get_entrys_from_sv(get_sv_from_hashindex(hi));
+	da_append(&his,hi);
 
 	//TODO: factor out this svs
 	// :write ankaso_word
@@ -911,17 +921,14 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
 	sb_append(&en_js_buffer,'\n');
 	sb_append_sv(&en_js_buffer,sv_from_cstr("},"));
 	
-	while(pull_cell(content,tabs,indent,&junk)){//junk...
-		if(junk.generation == 0) defer(false);
-		hash_remove_by_hashindex(junk);
+	while(pull_cell(content,tabs,indent,&hi)){//junk...
+		if(hi.generation == 0) defer(false);
+		da_append(&his,hi);
 	}
-	// free memory
-	hash_remove_by_hashindex(en_word.root);
-	//hash_remove_by_hashindex(ankaso_word.root);
-
-	da_free(en_word.general);
-	da_free(en_word.root_meaning);
 defer:
+	hash_remove_by_hashindices(his);
+	if(en_word.root_meaning.capacity > 0) da_free(en_word.root_meaning);
+	if(en_word.general.capacity > 0)      da_free(en_word.general);
 	return result;
 }
 
@@ -1135,24 +1142,26 @@ int main(void){
 	String_View content = {0};
 	if(!get_content(&content)) defer(1);
 	if(!parse_tabs(content)) defer(1);
-	#if 1
-	size_t bc  = 0;
-	size_t svs = 0;
-	for(size_t i = 0;i < HASH_TABLE_SIZE;++i){
-		//TODO: find the issue
-		//clang is being overly pandantic to get any usfully information out of it
-		//and gcc is crap
-		if(reftable.ref_counts[i] > 0)
-		{
-			String_View sv = reftable.svs[i];
-			bc += sv.count;
-			++svs;
-			//printf(SV_Fmt"\n",SV_Arg(sv));
-			sv_free(sv);
+
+	{//fail safe if memory didn't clean
+		size_t bc  = 0;
+		size_t svs = 0;
+		for(size_t i = 0;i < HASH_TABLE_SIZE;++i){
+			//TODO: find the issue
+			//clang is being overly pandantic to get any usfully information out of it
+			//and gcc is crap
+			if(reftable.ref_counts[i] > 0)
+			{
+				String_View sv = reftable.svs[i];
+				bc += sv.count;
+				++svs;
+				//printf(SV_Fmt"\n",SV_Arg(sv));
+				sv_free(sv);
+			}
 		}
+		if(bc > 0 || svs > 0) nob_log(NOB_WARNING,"bytes freed and left in table: %zu,svs_count: %zu",bc,svs);
 	}
-	if(bc > 0) nob_log(NOB_WARNING,"bytes freed and left in table: %zu,svs_count: %zu",bc,svs);
-	#endif
+
 	sv_free(content);
 	if(!dump_json()) defer(1);
 	sb_free(en_js_buffer);

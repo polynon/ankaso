@@ -2,8 +2,8 @@
 #define NOB_STRIP_PREFIXS
 #include "nob.h"
 
-#define cc "cc"
-//#define cc "clang"
+//#define cc "cc"
+#define cc "clang"
 #define Olevel "-o0"
 #define debug_flags "-g","-fsanitize=address"
 #define warnings "-Wextra","-Wall"// debug_flags
@@ -26,7 +26,7 @@ int main(int argc, char **argv){
 	cmd_append(&cmd,cc);
 	cmd_append(&cmd,warnings);
 	cmd_append(&cmd,Olevel);
-	//cmd_append(&cmd,debug_flags);
+	cmd_append(&cmd,debug_flags);
 	cmd_append(&cmd,"ods-parser.c");
 	cmd_append(&cmd,"-o","ods-parser");
 	cmd_append(&cmd,"-L./include/miniz/","-lminiz");
