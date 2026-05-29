@@ -160,6 +160,7 @@ static inline bool is_white_space(char c);
 static inline bool inc_sv(String_View *sv);
 bool parse_content(String_View *content,XmlTabs *tabs,String_Builder *out,size_t indent,String_View end);
 bool close_tab(XmlTabs *tabs);
+bool pull_cell(String_View *content,XmlTabs *tabs,uint64_t indent,HashIndex *out);
 String_View sv_cpy(String_View sv);
 
 // :memory
@@ -575,48 +576,92 @@ int get_attribute(XmlTab tab,String_View neddle){
 	return -1;
 }
 
+//update this when any changes
+#define DICT_TABLE_ROW_VERSION 1 
+#define DICT_TABLE_ROW_COUNT 5
+#define DICT_TABLE_ROW \
+XX(general)       \
+XX(root)          \
+XX(root_meaning)  \
+XX(o_form)        \
+XX(o_form_meaning)
 
-bool parse_first_row(String_View *content,XmlTabs *tabs,uint64_t indent){
-	/* TODO: 
-	 * this is where we can unhard code the order of the columns
+//TODO: make this string_view some how
+char *dict_table_row_strings[DICT_TABLE_ROW_COUNT] = {
+	"general",
+	"root",
+	"root meaning",
+	"o-form",
+	"o-form meaning",
+};
+
+#ifdef XX
+#	undef XX
+#endif
+typedef int DictTableRowIndex;
+#define XX(x) DictTableRowIndex x;
+typedef struct{ DICT_TABLE_ROW } DictTableRow;
+
+#ifdef XX
+#	undef XX
+#endif
+#define XX(x) dict_table_row_##x,
+typedef enum{ DICT_TABLE_ROW }  DictTableRowIndices;
+
+void dict_table_row_set_value_by_index(DictTableRow *out,int index,DictTableRowIndex value){
+	DictTableRowIndex *as_array = (DictTableRowIndex*)out;
+	as_array[index] = value; 
+}
+
+void print_sv_as_bytes(String_View sv){
+	for(size_t i = 0;i < sv.count;++i){
+		if(i > 0) printf(",");
+		printf("%02hhx",sv.data[i]);
+	}
+	printf("\n");
+}
+
+bool parse_first_row(String_View *content,XmlTabs *tabs,uint64_t indent,DictTableRow *out){
+	/*  
+	 * TODO:
+	 * the name will of this functino will have to change to
+	 * to specify that it's only for dict_table_row
 	 */
 	bool result = true;
-	XmlTab tab = {0};
-	for(;;){
-		if(content->count == 0) defer(false); //means we ended premucutly
-		if(!get_next_tab(content,&tab)) defer(false);
-		static_assert(__XmlTabType_count == 4,"update parse_first_row\n");
-		switch(tab.tab_type){
-			case XM_OPEN:{
-				tab.indent = indent++;
-				da_append(tabs,tab);
-				if(sv_eq(get_sv_from_hashindex(tab.type),ROW_SV)) defer(false);
-				break;
+
+	DictTableRow dict_table_row = {0};	
+	HashIndex hi;
+	HashIndices his = {0};
+	size_t column = 0;
+	static_assert(DICT_TABLE_ROW_VERSION == 1,"current dict_table_row_version is unxepected update parse_first_row");
+	while(pull_cell(content,tabs,indent,&hi)){
+		if(hi.generation == 0) defer(false);
+		da_append(&his,hi);
+		//printf(SV_Fmt"\n",SV_Arg(get_sv_from_hashindex(hi)));
+		//print_sv_as_bytes(get_sv_from_hashindex(hi));
+		for(int i = 0;i < DICT_TABLE_ROW_COUNT;++i){
+			//printf(SV_Fmt"\n",SV_Arg(sv_from_cstr(dict_table_row_strings[i])));
+			//print_sv_as_bytes(sv_from_cstr(dict_table_row_strings[i]));
+			if(sv_eq(sv_trim_right(get_sv_from_hashindex(hi)),sv_from_cstr(dict_table_row_strings[i]))){
+				//TODO: we do not check for double assignments
+				//TODO: we do not check for no assiments 
+				dict_table_row_set_value_by_index(&dict_table_row,i,column);
+				goto CONTINUE_PULLING;
 			}
-			case XM_CLOSE:{
-				tab.indent = --indent;
-				da_append(tabs,tab);
-				if(sv_eq(get_sv_from_hashindex(tab.type),ROW_SV)){
-					close_tab(tabs);
-					defer(true);
-				}
-				close_tab(tabs);
-				break;
-			}
-			case XM_CONTENT:{
-				tab.indent = indent;
-				da_append(tabs,tab);
-				break;
-			}
-			case XM_SELF_CONTAINED:{
-				tab.indent = indent;
-				da_append(tabs,tab);
-				break;
-			}
-			case __XmlTabType_count:UNREACHABLE("XmlTabType_count found in parse column in parse_first_row");
 		}
+		CONTINUE_PULLING:
+		++column;
 	}
 defer:
+	*out = dict_table_row;
+	hash_remove_by_hashindices(his);
+	/*
+	printf("general:%d\n",dict_table_row.general);
+	printf("root:%d\n",dict_table_row.root);
+	printf("root meaning:%d\n",dict_table_row.root_meaning);
+	printf("o-form:%d\n",dict_table_row.o_form);
+	printf("o-form meaning:%d\n",dict_table_row.o_form_meaning);
+	*/
 	return result;
 }
 
@@ -993,6 +1038,7 @@ bool parse_dict(String_View *content,XmlTabs *tabs,uint64_t indent){
 	*content = last_tab;
 	sb_append_sv(&ankaso_js_buffer,sv_from_cstr("{\n"));
 	sb_append_sv(&en_js_buffer,sv_from_cstr("{\n"));
+	DictTableRow dict_table_row;
 	for(;;){
 		if(content->count == 0){
 			nob_log(NOB_ERROR,"premuture EOF");
@@ -1009,7 +1055,8 @@ bool parse_dict(String_View *content,XmlTabs *tabs,uint64_t indent){
 				da_append(tabs,tab);
 				if(sv_eq(get_sv_from_hashindex(tab.type),ROW_SV)){	
 					if(first_row){ 
-						if(!parse_first_row(content,tabs,indent)) defer(false); 
+						//TODO: parce this before all else
+						if(!parse_first_row(content,tabs,indent,&dict_table_row)) defer(false); 
 						first_row = false;
 					}
 					else if(!parse_row(content,tabs,indent)) defer(false);
