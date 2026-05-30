@@ -185,6 +185,7 @@ static inline String_View get_sv_from_hashindex(HashIndex hi){
 size_t hash_from_sv(String_View sv){
 	//TODO: very bad hash function
 	size_t hash = 0;
+	if(sv.count == 0) return 0;
 	do{
 		char c = sv.data[0];
 		hash += (13 * (c + 69)) % HASH_TABLE_SIZE;
