@@ -104,16 +104,6 @@ typedef struct{
 }String_Views;
 
 typedef struct{
-	HashIndex root;
-	String_Views general;
-	String_Views root_meaning;
-}EN_Word;
-
-typedef struct{
-	HashIndex root;
-}Ankaso_Word;
-
-typedef struct{
 	HashIndex name;
 	HashIndex value;
 }Attribute;
@@ -340,7 +330,8 @@ String_Views get_entrys_from_sv(String_View sv){
 			comp = sv;
 		}
 	}
-	if(result.count == 0) da_append(&result,comp);//case for one entry
+	//case for one entry
+	if(result.count == 0) da_append(&result,sv_trim(comp));
 	return result;
 }
 
@@ -608,6 +599,12 @@ typedef struct{ DICT_TABLE_ROW } DictTableRow;
 #define XX(x) dict_table_row_##x,
 typedef enum{ DICT_TABLE_ROW }  DictTableRowIndices;
 
+#ifdef XX
+#	undef XX
+#endif
+#define XX(x) String_Views x##_svs; HashIndex x##_hi;
+typedef struct{ DICT_TABLE_ROW } DictTableRowJson;
+
 void dict_table_row_set_value_by_index(DictTableRow *out,int index,DictTableRowIndex value){
 	DictTableRowIndex *as_array = (DictTableRowIndex*)out;
 	as_array[index] = value; 
@@ -662,6 +659,75 @@ defer:
 	printf("o-form:%d\n",dict_table_row.o_form);
 	printf("o-form meaning:%d\n",dict_table_row.o_form_meaning);
 	*/
+	return result;
+}
+
+bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent,DictTableRow dict_table_row){
+	//TODO: rename to siqnify this function only parces dict_table
+
+	bool result = true;
+	HashIndices his = {0};
+	HashIndex hi = {0};
+
+	DictTableRowJson dict_table_row_json = {0};
+	size_t column = 0;
+	while(pull_cell(content,tabs,indent,&hi)){
+		if(hi.generation == 0) defer(false);
+		da_append(&his,hi);
+		//TODO: check for over writes
+		static_assert(DICT_TABLE_ROW_VERSION == 1,"current dict_table_row_version is unxepected update parse_row");
+		#ifdef XX
+		#	undef XX
+		#endif
+		#define XX(x) \
+		if(column == (size_t)dict_table_row. x){ \
+			dict_table_row_json. x##_svs = get_entrys_from_sv(get_sv_from_hashindex(hi));\
+			dict_table_row_json. x##_hi = hi;\
+		}
+		DICT_TABLE_ROW
+		++column;
+	}
+
+	static_assert(DICT_TABLE_ROW_VERSION == 1,"current dict_table_row_version is unxepected update parse_row");
+	if(!is_valid_hashindex(dict_table_row_json.root_hi)) defer(true);
+	if(sv_eq(get_sv_from_hashindex(dict_table_row_json.root_hi),sv_from_cstr(""))) defer(true);
+	// :write to ankaso json buffer
+	sb_append_json_sv(&ankaso_js_buffer,sv_trim(dict_table_row_json.root_svs.items[0]));
+	sb_append_sv(&ankaso_js_buffer,sv_from_cstr(": {\n"));
+		//root
+		sb_appendf(&ankaso_js_buffer,"\"%s\":",dict_table_row_strings[dict_table_row_root]);
+		sb_append_json_svs(&ankaso_js_buffer,dict_table_row_json.root_svs);
+		sb_append_sv(&ankaso_js_buffer,sv_from_cstr(",\n"));
+		//o-form
+		sb_appendf(&ankaso_js_buffer,"\"%s\":",dict_table_row_strings[dict_table_row_o_form]);
+		sb_append_json_svs(&ankaso_js_buffer,dict_table_row_json.o_form_svs);
+		sb_append_sv(&ankaso_js_buffer,sv_from_cstr("\n"));
+	sb_append_sv(&ankaso_js_buffer,sv_from_cstr("},"));
+
+	// :write en_word
+	sb_append_json_sv(&en_js_buffer,sv_trim(dict_table_row_json.root_svs.items[0]));
+	sb_append_sv(&en_js_buffer,sv_from_cstr(": {\n"));
+		//root-meaning
+		sb_appendf(&en_js_buffer,"\"%s\":",dict_table_row_strings[dict_table_row_root_meaning]);
+		sb_append_json_svs(&en_js_buffer,dict_table_row_json.root_meaning_svs);
+		sb_append_sv(&en_js_buffer,sv_from_cstr(",\n"));
+		//general
+		sb_appendf(&en_js_buffer,"\"%s\":",dict_table_row_strings[dict_table_row_general]);
+		sb_append_json_svs(&en_js_buffer,dict_table_row_json.general_svs);
+		sb_append_sv(&en_js_buffer,sv_from_cstr(",\n"));
+		//o-form-meaning
+		sb_appendf(&en_js_buffer,"\"%s\":",dict_table_row_strings[dict_table_row_o_form_meaning]);
+		sb_append_json_svs(&en_js_buffer,dict_table_row_json.o_form_meaning_svs);
+		sb_append_sv(&en_js_buffer,sv_from_cstr("\n"));
+	sb_append_sv(&en_js_buffer,sv_from_cstr("},"));
+defer:
+	hash_remove_by_hashindices(his);
+	static_assert(DICT_TABLE_ROW_VERSION == 1,"current dict_table_row_version is unxepected update parse_row");
+	#ifdef XX
+	#	undef XX
+	#endif
+	#define XX(x) if((dict_table_row_json. x##_svs).capacity > 0) da_free(dict_table_row_json. x##_svs);
+	DICT_TABLE_ROW
 	return result;
 }
 
@@ -902,80 +968,7 @@ bool pull_cell(String_View *content,XmlTabs *tabs,uint64_t indent,HashIndex *out
 	return true;
 }
 
-bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent){
-	/* TODO:
-	 * this is a really hard coded function only used for parse_dict
-	 * we will need to abstract this to make it work
-	 * with parse_names and parse_compounds
-	 */
-	bool result = true;
-	EN_Word en_word = {0};
-	Ankaso_Word ankaso_word = {0};
 
-	HashIndices his = {0};
-	HashIndex hi = {0};
-	if(!pull_cell(content,tabs,indent,&hi)){
-		//no root
-		defer(true);//junk
-	}
-	if(hi.generation == 0) defer(false) 	;
-	da_append(&his,hi);
-
-	if(!pull_cell(content,tabs,indent,&hi)){
-		//no root
-		defer(true);//general
-	}
-	if(hi.generation == 0) defer(false);
-	en_word.general = get_entrys_from_sv(get_sv_from_hashindex(hi));
-	da_append(&his,hi);
-	
-	if(!pull_cell(content,tabs,indent,&hi)){
-		TODO("root early json");
-		defer(true);//root
-	}
-	if(hi.generation == 0) defer(false);
-	en_word.root     = hi;
-	ankaso_word.root = hi;
-	da_append(&his,hi);
-
-	if(!pull_cell(content,tabs,indent,&hi)){
-		TODO("root-meaning early json");
-		defer(true);//root-meaning
-	}
-	if(hi.generation == 0) defer(false);
-	en_word.root_meaning = get_entrys_from_sv(get_sv_from_hashindex(hi));
-	da_append(&his,hi);
-
-	//TODO: factor out this svs
-	// :write ankaso_word
-	sb_append_json_sv(&ankaso_js_buffer,get_sv_from_hashindex(ankaso_word.root));
-	sb_append_sv(&ankaso_js_buffer,sv_from_cstr(": {\n"));
-	sb_append_sv(&ankaso_js_buffer,sv_from_cstr("\"root\":"));
-	sb_append_json_sv(&ankaso_js_buffer,get_sv_from_hashindex(ankaso_word.root));
-	sb_append(&ankaso_js_buffer,'\n');
-	sb_append_sv(&ankaso_js_buffer,sv_from_cstr("},"));
-
-	// :write en_word
-	sb_append_json_sv(&en_js_buffer,get_sv_from_hashindex(en_word.root));
-	sb_append_sv(&en_js_buffer,sv_from_cstr(": {\n"));
-	sb_append_sv(&en_js_buffer,sv_from_cstr("\"root\":"));
-	sb_append_json_svs(&en_js_buffer,en_word.root_meaning);
-	sb_append_sv(&en_js_buffer,sv_from_cstr(",\n"));
-	sb_append_sv(&en_js_buffer,sv_from_cstr("\"general\":"));
-	sb_append_json_svs(&en_js_buffer,en_word.general);
-	sb_append(&en_js_buffer,'\n');
-	sb_append_sv(&en_js_buffer,sv_from_cstr("},"));
-	
-	while(pull_cell(content,tabs,indent,&hi)){//junk...
-		if(hi.generation == 0) defer(false);
-		da_append(&his,hi);
-	}
-defer:
-	hash_remove_by_hashindices(his);
-	if(en_word.root_meaning.capacity > 0) da_free(en_word.root_meaning);
-	if(en_word.general.capacity > 0)      da_free(en_word.general);
-	return result;
-}
 
 bool parse_dict(String_View *content,XmlTabs *tabs,uint64_t indent){
 	bool result = true;
@@ -1055,11 +1048,11 @@ bool parse_dict(String_View *content,XmlTabs *tabs,uint64_t indent){
 				da_append(tabs,tab);
 				if(sv_eq(get_sv_from_hashindex(tab.type),ROW_SV)){	
 					if(first_row){ 
-						//TODO: parce this before all else
+						//TODO: parce this before the loop 
 						if(!parse_first_row(content,tabs,indent,&dict_table_row)) defer(false); 
 						first_row = false;
 					}
-					else if(!parse_row(content,tabs,indent)) defer(false);
+					else if(!parse_row(content,tabs,indent,dict_table_row)) defer(false);
 					--indent;
 				}
 				else UNREACHABLE("unexpected in parse_dict");
