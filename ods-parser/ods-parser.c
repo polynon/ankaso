@@ -324,7 +324,7 @@ String_Views get_entrys_from_sv(String_View sv){
 			comp.count = comp.count - sv.count;
 			comp = sv_trim_right(comp);
 
-			sv_chop_prefix(&comp,sv_from_cstr(","));
+			sv_chop_suffix(&comp,sv_from_cstr(","));
 			da_append(&result,comp);
 			sv = sv_trim_left(sv);//get rid of white spaces
 			comp = sv;
