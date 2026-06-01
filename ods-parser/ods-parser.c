@@ -578,14 +578,16 @@ int get_attribute(XmlTab tab,String_View neddle){
 
 
 //update this when any changes
-#define DICT_TABLE_ROW_VERSION 1 
-#define DICT_TABLE_ROW_COUNT 5
+#define DICT_TABLE_ROW_VERSION 2
+#define DICT_TABLE_ROW_COUNT 7
 #define DICT_TABLE_ROW \
 XX(general)       \
 XX(root)          \
 XX(root_meaning)  \
 XX(o_form)        \
-XX(o_form_meaning)
+XX(o_form_meaning)\
+XX(description)   \
+XX(tags)
 
 //TODO: make this string_view some how
 char *dict_table_row_strings[DICT_TABLE_ROW_COUNT] = {
@@ -594,6 +596,8 @@ char *dict_table_row_strings[DICT_TABLE_ROW_COUNT] = {
 	"root meaning",
 	"o-form",
 	"o-form meaning",
+	"description",
+	"tags",
 };
 
 #ifdef XX
@@ -640,7 +644,7 @@ bool parse_first_row(String_View *content,XmlTabs *tabs,uint64_t indent,DictTabl
 	HashIndex hi;
 	HashIndices his = {0};
 	size_t column = 0;
-	static_assert(DICT_TABLE_ROW_VERSION == 1,"current dict_table_row_version is unxepected update parse_first_row");
+	static_assert(DICT_TABLE_ROW_VERSION == 2,"current dict_table_row_version is unxepected update parse_first_row");
 	while(pull_cell(content,tabs,indent,&hi)){
 		if(hi.generation == 0) defer(false);
 		da_append(&his,hi);
@@ -662,13 +666,13 @@ bool parse_first_row(String_View *content,XmlTabs *tabs,uint64_t indent,DictTabl
 defer:
 	*out = dict_table_row;
 	hash_remove_by_hashindices(his);
-	/*
-	printf("general:%d\n",dict_table_row.general);
-	printf("root:%d\n",dict_table_row.root);
-	printf("root meaning:%d\n",dict_table_row.root_meaning);
-	printf("o-form:%d\n",dict_table_row.o_form);
-	printf("o-form meaning:%d\n",dict_table_row.o_form_meaning);
-	*/
+	nob_log(NOB_INFO,"column general at:%d",dict_table_row.general);
+	nob_log(NOB_INFO,"column root at:%d",dict_table_row.root);
+	nob_log(NOB_INFO,"column root meaning at:%d",dict_table_row.root_meaning);
+	nob_log(NOB_INFO,"column o-form at:%d",dict_table_row.o_form);
+	nob_log(NOB_INFO,"column o-form meaning at:%d",dict_table_row.o_form_meaning);
+	nob_log(NOB_INFO,"column description at:%d",dict_table_row.description);
+	nob_log(NOB_INFO,"column tags at:%d",dict_table_row.tags);
 	return result;
 }
 
@@ -685,7 +689,7 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent,DictTableRow d
 		if(hi.generation == 0) defer(false);
 		da_append(&his,hi);
 		//TODO: check for over writes
-		static_assert(DICT_TABLE_ROW_VERSION == 1,"current dict_table_row_version is unxepected update parse_row");
+		static_assert(DICT_TABLE_ROW_VERSION == 2,"current dict_table_row_version is unxepected update parse_row");
 		#ifdef XX
 		#	undef XX
 		#endif
@@ -705,7 +709,7 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent,DictTableRow d
 		}                                                                                    \
 	}while(0)
 
-	static_assert(DICT_TABLE_ROW_VERSION == 1,"current dict_table_row_version is unxepected update parse_row");
+	static_assert(DICT_TABLE_ROW_VERSION == 2,"current dict_table_row_version is unxepected update parse_row");
 	if(!is_valid_hashindex(dict_table_row_json.root_hi)) defer(true);
 	if(sv_eq(get_sv_from_hashindex(dict_table_row_json.root_hi),sv_from_cstr(""))) defer(true);
 	// :write to ankaso json buffer
@@ -722,19 +726,30 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent,DictTableRow d
 	sb_append_sv(&ankaso_js_buffer,sv_from_cstr(","));
 
 	// :write en_word
+	static_assert(DICT_TABLE_ROW_VERSION == 2,"current dict_table_row_version is unxepected update parse_row");
 	sb_append_json_sv(&en_js_buffer,sv_trim(dict_table_row_json.root_svs.items[0]));
 	sb_append_sv(&en_js_buffer,sv_from_cstr(": {\n"));
 		//root-meaning
 		DICT_TABLE_ROW_SB_APPEND_KEY_VALUE_PAIR(&en_js_buffer,root_meaning);
-		//general
-		DICT_TABLE_ROW_SB_APPEND_KEY_VALUE_PAIR(&en_js_buffer,general);
+		/*
+		 * NOTE: general and description are a unchecked union
+		 *       only one of them should be there at a time
+		 */
+		{//union
+			//general
+			DICT_TABLE_ROW_SB_APPEND_KEY_VALUE_PAIR(&en_js_buffer,general);
+			//description
+			DICT_TABLE_ROW_SB_APPEND_KEY_VALUE_PAIR(&en_js_buffer,description);
+		}
 		//o-form-meaning
 		DICT_TABLE_ROW_SB_APPEND_KEY_VALUE_PAIR(&en_js_buffer,o_form_meaning);
+		//tags
+		DICT_TABLE_ROW_SB_APPEND_KEY_VALUE_PAIR(&en_js_buffer,tags);
 	sb_json_close(&en_js_buffer,'}');
 	sb_append_sv(&en_js_buffer,sv_from_cstr(","));
 defer:
 	hash_remove_by_hashindices(his);
-	static_assert(DICT_TABLE_ROW_VERSION == 1,"current dict_table_row_version is unxepected update parse_row");
+	static_assert(DICT_TABLE_ROW_VERSION == 2,"current dict_table_row_version is unxepected update parse_row");
 	#ifdef XX
 	#	undef XX
 	#endif
