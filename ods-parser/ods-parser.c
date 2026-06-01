@@ -153,6 +153,14 @@ bool close_tab(XmlTabs *tabs);
 bool pull_cell(String_View *content,XmlTabs *tabs,uint64_t indent,HashIndex *out);
 String_View sv_cpy(String_View sv);
 
+bool does_svs_have_non_empty_sv(String_Views svs){
+	for(size_t i = 0;i < svs.count;++i){
+		String_View sv = svs.items[i];
+		if(!sv_eq(sv,sv_from_cstr(""))) return true;
+	}
+	return false;
+}
+
 // :memory
 #define HASH_TABLE_SIZE (1024*1024)
 // hash_table_size should fit in int for errors
@@ -568,6 +576,7 @@ int get_attribute(XmlTab tab,String_View neddle){
 	return -1;
 }
 
+
 //update this when any changes
 #define DICT_TABLE_ROW_VERSION 1 
 #define DICT_TABLE_ROW_COUNT 5
@@ -688,6 +697,13 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent,DictTableRow d
 		DICT_TABLE_ROW
 		++column;
 	}
+	#define DICT_TABLE_ROW_SB_APPEND_KEY_VALUE_PAIR(buffer,key) do{                              \
+		if(does_svs_have_non_empty_sv(dict_table_row_json. key##_svs)){                      \
+			sb_appendf((buffer),"\"%s\":",dict_table_row_strings[dict_table_row_##key]);\
+			sb_append_json_svs((buffer),dict_table_row_json. key##_svs);                \
+			sb_append_sv((buffer),sv_from_cstr(","));                                   \
+		}                                                                                    \
+	}while(0)
 
 	static_assert(DICT_TABLE_ROW_VERSION == 1,"current dict_table_row_version is unxepected update parse_row");
 	if(!is_valid_hashindex(dict_table_row_json.root_hi)) defer(true);
@@ -696,31 +712,26 @@ bool parse_row(String_View *content,XmlTabs *tabs,uint64_t indent,DictTableRow d
 	sb_append_json_sv(&ankaso_js_buffer,sv_trim(dict_table_row_json.root_svs.items[0]));
 	sb_append_sv(&ankaso_js_buffer,sv_from_cstr(": {\n"));
 		//root
-		sb_appendf(&ankaso_js_buffer,"\"%s\":",dict_table_row_strings[dict_table_row_root]);
-		sb_append_json_svs(&ankaso_js_buffer,dict_table_row_json.root_svs);
-		sb_append_sv(&ankaso_js_buffer,sv_from_cstr(",\n"));
+		assert(does_svs_have_non_empty_sv(dict_table_row_json.root_svs));
+			sb_appendf(&ankaso_js_buffer,"\"%s\":",dict_table_row_strings[dict_table_row_root]);
+			sb_append_json_svs(&ankaso_js_buffer,dict_table_row_json.root_svs);
+			sb_append_sv(&ankaso_js_buffer,sv_from_cstr(","));
 		//o-form
-		sb_appendf(&ankaso_js_buffer,"\"%s\":",dict_table_row_strings[dict_table_row_o_form]);
-		sb_append_json_svs(&ankaso_js_buffer,dict_table_row_json.o_form_svs);
-		sb_append_sv(&ankaso_js_buffer,sv_from_cstr("\n"));
-	sb_append_sv(&ankaso_js_buffer,sv_from_cstr("},"));
+		DICT_TABLE_ROW_SB_APPEND_KEY_VALUE_PAIR(&ankaso_js_buffer,o_form);
+	sb_json_close(&ankaso_js_buffer,'}');
+	sb_append_sv(&ankaso_js_buffer,sv_from_cstr(","));
 
 	// :write en_word
 	sb_append_json_sv(&en_js_buffer,sv_trim(dict_table_row_json.root_svs.items[0]));
 	sb_append_sv(&en_js_buffer,sv_from_cstr(": {\n"));
 		//root-meaning
-		sb_appendf(&en_js_buffer,"\"%s\":",dict_table_row_strings[dict_table_row_root_meaning]);
-		sb_append_json_svs(&en_js_buffer,dict_table_row_json.root_meaning_svs);
-		sb_append_sv(&en_js_buffer,sv_from_cstr(",\n"));
+		DICT_TABLE_ROW_SB_APPEND_KEY_VALUE_PAIR(&en_js_buffer,root_meaning);
 		//general
-		sb_appendf(&en_js_buffer,"\"%s\":",dict_table_row_strings[dict_table_row_general]);
-		sb_append_json_svs(&en_js_buffer,dict_table_row_json.general_svs);
-		sb_append_sv(&en_js_buffer,sv_from_cstr(",\n"));
+		DICT_TABLE_ROW_SB_APPEND_KEY_VALUE_PAIR(&en_js_buffer,general);
 		//o-form-meaning
-		sb_appendf(&en_js_buffer,"\"%s\":",dict_table_row_strings[dict_table_row_o_form_meaning]);
-		sb_append_json_svs(&en_js_buffer,dict_table_row_json.o_form_meaning_svs);
-		sb_append_sv(&en_js_buffer,sv_from_cstr("\n"));
-	sb_append_sv(&en_js_buffer,sv_from_cstr("},"));
+		DICT_TABLE_ROW_SB_APPEND_KEY_VALUE_PAIR(&en_js_buffer,o_form_meaning);
+	sb_json_close(&en_js_buffer,'}');
+	sb_append_sv(&en_js_buffer,sv_from_cstr(","));
 defer:
 	hash_remove_by_hashindices(his);
 	static_assert(DICT_TABLE_ROW_VERSION == 1,"current dict_table_row_version is unxepected update parse_row");
